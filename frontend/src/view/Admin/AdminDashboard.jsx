@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import Session from "../../Session/session";
 import AdminInfo from "./AdminInfo";
 import AdminAddressManager from "./AdminAddressManager";
@@ -7,7 +7,7 @@ import ProductManager from "./ProductManager";
 import CategoryManager from "./categories/CategoryManager";
 import OrderManager from "./OrderManager";
 import Revenue from "./Revenue";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 export default function AdminDashboard() {
   const user = useMemo(() => (Session.isLoggedIn() ? Session.getUser() : null), []);
@@ -15,6 +15,14 @@ export default function AdminDashboard() {
   const [menuOpen, setMenuOpen] = useState(true);
   const [dropdownOpen, setDropdownOpen] = useState(true);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Xử lý activeTab từ state khi navigate về
+  useEffect(() => {
+    if (location.state?.activeTab) {
+      setActiveTab(location.state.activeTab);
+    }
+  }, [location.state]);
 
   if (!user)
     return (

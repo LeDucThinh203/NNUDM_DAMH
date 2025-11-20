@@ -12,6 +12,7 @@ import ProductList from "./view/Product/ProductList";
 import AddProduct from "./view/Product/AddProduct";
 import EditProduct from "./view/Product/EditProduct";
 import ProductDetail from "./view/Product/ProductDetail";
+import ProductLoadMore from "./view/Product/ProductLoadMore";
 
 // Category
 import CategoryManager from "./view/Admin/categories/CategoryManager";
@@ -92,8 +93,8 @@ function AppContent() {
     return children;
   };
 
-  // Kiểm tra route để không render header trên ProductList
-  const showHeader = pathname !== "/";
+  // Kiểm tra route để không render header trên ProductList và ProductLoadMore
+  const showHeader = pathname !== "/" && !pathname.startsWith("/category/");
 
   return (
     <div className="bg-gray-50 min-h-screen flex flex-col font-sans">
@@ -107,6 +108,7 @@ function AppContent() {
             {/* Public */}
             <Route path="/" element={<ProductList />} />
             <Route path="/product/:id" element={<ProductDetail />} />
+            <Route path="/category/:categoryId" element={<ProductLoadMore />} />
             <Route path="/login" element={<Login setUser={setUser} />} />
             <Route path="/register" element={<Register />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />

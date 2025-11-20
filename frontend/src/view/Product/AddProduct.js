@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { createProduct, getAllCategories } from "../../api";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 export default function AddProduct() {
   const [product, setProduct] = useState({
@@ -13,6 +13,9 @@ export default function AddProduct() {
   });
   const [categories, setCategories] = useState([]);
   const navigate = useNavigate();
+  const location = useLocation();
+  const returnTo = location.state?.returnTo || "/";
+  const activeTab = location.state?.activeTab;
 
   useEffect(() => {
     fetchCategories();
@@ -55,7 +58,7 @@ export default function AddProduct() {
       const res = await createProduct(newProduct);
       if (res) {
         alert("✅ Thêm sản phẩm thành công!");
-        navigate("/");
+        navigate(returnTo, activeTab ? { state: { activeTab } } : undefined);
       } else {
         alert("❌ Lỗi khi thêm sản phẩm!");
       }

@@ -1,9 +1,9 @@
-// src/view/Product/ProductList.js
+// src/view/Product/ProductLoadMore.js
 import React, { useEffect, useState, useRef } from "react";
-import { getAllProducts, deleteProduct, getAllCategories, getAllSizes, getAllProductSizes } from "../../api";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useParams, useNavigate } from "react-router-dom";
+import { getAllProducts, getAllCategories, getAllSizes, getAllProductSizes, deleteProduct } from "../../api";
 
-// Session utility - định nghĩa trước để sử dụng trong component
+// Session utility
 const Session = {
   setUser(id, username, role = "user", email = "") {
     const user = { id, username, role, email };
@@ -25,27 +25,27 @@ const Session = {
   }
 };
 
-export default function ProductList() {
+export default function ProductLoadMore() {
+  const { categoryId } = useParams();
+  const navigate = useNavigate();
   const [products, setProducts] = useState([]);
-  const [categories, setCategories] = useState([]);
+  const [category, setCategory] = useState(null);
   const [sizes, setSizes] = useState([]);
   const [productSizes, setProductSizes] = useState([]);
-  const [searchName, setSearchName] = useState("");
-  const [isSearching, setIsSearching] = useState(false);
   const [selectedSizes, setSelectedSizes] = useState({});
-  const [priceRange, setPriceRange] = useState([0, 5000000]);
-  const [selectedCategory, setSelectedCategory] = useState("all");
-  const [sortOrder, setSortOrder] = useState("default");
   const [cartCount, setCartCount] = useState(0);
+  const [visibleCount, setVisibleCount] = useState(8);
+  const [priceRange, setPriceRange] = useState([0, 5000000]);
+  const [sortOrder, setSortOrder] = useState("default");
+  const [searchTerm, setSearchTerm] = useState("");
 
-  const navigate = useNavigate();
   const user = Session.getUser();
   const isAdmin = Session.isAdmin();
 
   useEffect(() => {
     fetchData();
     updateCartCount();
-  }, []);
+  }, [categoryId]);
 
   const updateCartCount = () => {
     const cart = JSON.parse(localStorage.getItem('cart') || '[]');
@@ -62,13 +62,12 @@ export default function ProductList() {
         getAllProductSizes()
       ]);
       
-      console.log('🔍 ProductSizes từ API:', productSizesData.slice(0, 3));
-      console.log('🔍 Sample warehouse values:', productSizesData.slice(0, 5).map(ps => ({ id: ps.id, warehouse: ps.warehouse })));
-      
       setProducts(prodData);
-      setCategories(catData);
       setSizes(sizesData);
       setProductSizes(productSizesData);
+      
+      const currentCategory = catData.find(c => c.id === Number(categoryId));
+      setCategory(currentCategory);
     } catch (err) {
       console.error("Lấy dữ liệu thất bại:", err);
     }
@@ -97,8 +96,7 @@ export default function ProductList() {
     const result = availableProductSizes.map(ps => {
       const size = sizes.find(s => s.id === ps.size_id);
       const stock = Number(ps.stock ?? 0);
-      if (productId === 60) console.log(`🔍 Size ${size?.size} stock:`, ps.stock, '→', stock);
-      return size ? { id: ps.id, size: size.size, stock } : null;
+      return size ? { ...size, stock } : null;
     }).filter(Boolean);
     return result;
   };
@@ -122,7 +120,6 @@ export default function ProductList() {
       return;
     }
 
-    // Tính giá sau giảm
     const discount = Number(product.discount_percent || 0);
     const finalPrice = discount > 0 ? product.price * (1 - discount / 100) : product.price;
 
@@ -132,7 +129,6 @@ export default function ProductList() {
     );
 
     if (existingItem) {
-      // Kiểm tra không vượt quá stock
       if (existingItem.quantity >= stock) {
         alert(`❌ Bạn đã thêm tối đa ${stock} sản phẩm size ${selectedSize} (đã hết trong kho)!`);
         return;
@@ -141,8 +137,8 @@ export default function ProductList() {
     } else {
       cart.push({ 
         ...product, 
-        price: finalPrice, // Lưu giá đã giảm
-        original_price: product.price, // Lưu giá gốc để tham khảo
+        price: finalPrice,
+        original_price: product.price,
         discount_percent: discount,
         size: selectedSize,
         quantity: 1 
@@ -159,27 +155,20 @@ export default function ProductList() {
     window.location.reload();
   };
 
-  const handleSearch = (term) => {
-    setSearchName(term);
-    setIsSearching(term.trim() !== "");
-  };
-
   const handleImageClick = (productId) => {
     navigate(`/product/${productId}`);
   };
 
+  // Lọc sản phẩm theo category và các bộ lọc khác
   const filteredProducts = products.filter((p) => {
-    const matchesSearch = p.name.toLowerCase().includes(searchName.toLowerCase());
+    const matchesCategory = p.category_id === Number(categoryId);
+    const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase());
     
-    // Lọc theo khoảng giá
     const discount = Number(p.discount_percent || 0);
     const finalPrice = discount > 0 ? p.price * (1 - discount / 100) : p.price;
     const matchesPrice = finalPrice >= priceRange[0] && finalPrice <= priceRange[1];
     
-    // Lọc theo danh mục
-    const matchesCategory = selectedCategory === "all" || p.category_id === Number(selectedCategory);
-    
-    return matchesSearch && matchesPrice && matchesCategory;
+    return matchesCategory && matchesSearch && matchesPrice;
   }).sort((a, b) => {
     const discountA = Number(a.discount_percent || 0);
     const discountB = Number(b.discount_percent || 0);
@@ -190,37 +179,32 @@ export default function ProductList() {
     if (sortOrder === "price-desc") return priceB - priceA;
     if (sortOrder === "name-asc") return a.name.localeCompare(b.name);
     if (sortOrder === "name-desc") return b.name.localeCompare(a.name);
-    return 0; // default
+    return 0;
   });
 
-  // Featured products: those having discount_percent > 0
-  const featuredProducts = filteredProducts.filter((p) => Number(p.discount_percent || 0) > 0);
+  const visibleProducts = filteredProducts.slice(0, visibleCount);
+  const hasMore = visibleCount < filteredProducts.length;
 
-  // Phân loại sản phẩm theo danh mục - chỉ lấy từ category_id
-  const categorizedProducts = categories.map((cat) => {
-    const catProducts = filteredProducts.filter((p) => p.category_id === cat.id);
-    return { ...cat, products: catProducts };
-  }).filter(cat => cat.products.length > 0); // Chỉ giữ category có sản phẩm
+  const handleLoadMore = () => {
+    setVisibleCount(prev => prev + 8);
+  };
+
+  const handleCollapse = () => {
+    setVisibleCount(8);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   return (
     <div className="bg-gray-50 min-h-screen">
       <Header
         user={user}
         handleLogout={handleLogout}
-        products={products}
-        onSearch={handleSearch}
+        products={products.filter(p => p.category_id === Number(categoryId))}
+        onSearch={setSearchTerm}
         cartCount={cartCount}
       />
 
-      {/* Add custom scrollbar hide style */}
       <style>{`
-        .scrollbar-hide::-webkit-scrollbar {
-          display: none;
-        }
-        .scrollbar-hide {
-          -ms-overflow-style: none;
-          scrollbar-width: none;
-        }
         .slider-thumb::-webkit-slider-thumb {
           appearance: none;
           width: 20px;
@@ -241,10 +225,9 @@ export default function ProductList() {
         }
       `}</style>
 
-      {/* Main content wrapper */}
       <div className="flex gap-6 mt-20">
-        {/* Left Sidebar - Filters - Fixed to left */}
-        <aside className="w-80 flex-shrink-0 absolute left-12 top-[340px] bg-white shadow-lg rounded-r-lg p-6 z-30">
+        {/* Left Sidebar - Filters */}
+        <aside className="w-80 flex-shrink-0 absolute left-12 top-[120px] bg-white shadow-lg rounded-r-lg p-6 z-30">
           <h3 className="text-lg font-bold mb-6">Bộ Lọc</h3>
           
           {/* Khoảng Giá */}
@@ -256,7 +239,6 @@ export default function ProductList() {
               <span className="text-blue-600 font-medium">{priceRange[1].toLocaleString()} VND</span>
             </div>
             <div className="relative">
-              {/* Thanh trượt min */}
               <input
                 type="range"
                 min="0"
@@ -272,7 +254,6 @@ export default function ProductList() {
                 className="absolute w-full h-2 bg-transparent rounded-lg appearance-none cursor-pointer slider-thumb z-10"
                 style={{ pointerEvents: 'auto' }}
               />
-              {/* Thanh trượt max */}
               <input
                 type="range"
                 min="0"
@@ -290,37 +271,6 @@ export default function ProductList() {
                   background: `linear-gradient(to right, #e5e7eb 0%, #e5e7eb ${(priceRange[0] / 5000000) * 100}%, #3b82f6 ${(priceRange[0] / 5000000) * 100}%, #3b82f6 ${(priceRange[1] / 5000000) * 100}%, #e5e7eb ${(priceRange[1] / 5000000) * 100}%, #e5e7eb 100%)`
                 }}
               />
-            </div>
-          </div>
-
-          {/* Lọc theo danh mục */}
-          <div className="mb-6">
-            <label className="text-sm font-semibold text-gray-700 mb-3 block">Danh Mục</label>
-            <div className="space-y-2">
-              <label className="flex items-center cursor-pointer hover:bg-gray-50 p-2 rounded transition">
-                <input
-                  type="radio"
-                  name="category"
-                  value="all"
-                  checked={selectedCategory === "all"}
-                  onChange={() => setSelectedCategory("all")}
-                  className="mr-3 w-4 h-4 text-blue-600 focus:ring-blue-500"
-                />
-                <span className="text-sm text-gray-700">Tất cả</span>
-              </label>
-              {categories.map((cat) => (
-                <label key={cat.id} className="flex items-center cursor-pointer hover:bg-gray-50 p-2 rounded transition">
-                  <input
-                    type="radio"
-                    name="category"
-                    value={cat.id}
-                    checked={selectedCategory === String(cat.id)}
-                    onChange={() => setSelectedCategory(String(cat.id))}
-                    className="mr-3 w-4 h-4 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="text-sm text-gray-700">{cat.name}</span>
-                </label>
-              ))}
             </div>
           </div>
 
@@ -346,236 +296,92 @@ export default function ProductList() {
               Tìm thấy <span className="font-bold text-blue-600">{filteredProducts.length}</span> sản phẩm
             </p>
           </div>
+
+          {/* Nút quay lại */}
+          <div className="mt-6">
+            <Link
+              to="/"
+              className="block w-full text-center bg-gray-800 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition font-medium"
+            >
+              ← Quay lại trang chủ
+            </Link>
+          </div>
         </aside>
 
-        {/* Right Content Area - Offset by sidebar width */}
-        <div className="flex-1 ml-56 px-4">
-          {/* Video Banner */}
-          <div className="relative w-full h-64 sm:h-80 lg:h-[400px] overflow-hidden mb-4 rounded-lg">
-            <video
-              src="https://media3.coolmate.me/uploads/videos/banner_chaybo_coolfast.mp4"
-              autoPlay
-              loop
-              muted
-              playsInline
-              className="w-full h-full object-cover"
-            />
-            <div className="absolute inset-0 bg-black/25 flex items-center justify-center">
-              <h1 className="text-white text-3xl sm:text-5xl font-bold uppercase tracking-wide text-center">
-                Khám phá sản phẩm mới
+        {/* Right Content Area */}
+        <div className="flex-1 ml-56 px-4 pb-10">
+          <div className="max-w-7xl mx-auto">
+            {/* Category Header */}
+            <div className="mb-8">
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                {category?.name || "Đang tải..."}
               </h1>
-            </div>
-          </div>
-
-          {isAdmin && (
-            <div className="mb-10 flex justify-end">
-              <button
-                onClick={() => navigate("/add", { state: { returnTo: "/" } })}
-                className="bg-blue-600 text-white px-6 py-2 rounded-full shadow-lg hover:bg-blue-700 transition"
-              >
-                ➕ Thêm sản phẩm
-              </button>
-            </div>
-          )}
-
-          {/* Hàng đầu: Sản phẩm nổi bật (khuyến mãi) */}
-          <div className="pb-20 space-y-10">
-        {featuredProducts.length > 0 && (
-          <div className="relative">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-2xl font-bold uppercase">Sản phẩm nổi bật</h2>
+              <p className="text-gray-600">
+                Hiển thị {visibleProducts.length} / {filteredProducts.length} sản phẩm
+              </p>
             </div>
 
-            <div className="relative overflow-hidden">
-              {featuredProducts.length > 4 && (
+            {isAdmin && (
+              <div className="mb-6 flex justify-end">
                 <button
-                  onClick={() => {
-                    const container = document.getElementById('category-featured');
-                    if (!container) return;
-                    const row = container.querySelector('.product-row');
-                    const firstItem = row && row.children && row.children[0];
-                    if (!row || !firstItem) return;
-                    const styles = getComputedStyle(row);
-                    const gapRaw = styles.columnGap || styles.gap || '0';
-                    const gap = parseFloat(gapRaw) || 0;
-                    const itemWidth = firstItem.getBoundingClientRect().width + gap;
-                    const total = row.children.length;
-                    const maxStart = Math.max(0, total - 4);
-                    const currentIndex = Math.round(container.scrollLeft / itemWidth);
-                    const prevIndex = Math.max(0, Math.min(maxStart, currentIndex - 1));
-                    container.scrollTo({ left: Math.round(prevIndex * itemWidth), behavior: 'smooth' });
-                  }}
-                  className="absolute left-0 top-1/2 -translate-y-1/2 z-20 bg-black/70 hover:bg-black text-white w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-lg hover:scale-110"
-                  aria-label="Scroll left"
+                  onClick={() => navigate("/add", { state: { returnTo: `/category/${categoryId}` } })}
+                  className="bg-blue-600 text-white px-6 py-2 rounded-full shadow-lg hover:bg-blue-700 transition"
                 >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                  </svg>
+                  ➕ Thêm sản phẩm
                 </button>
-              )}
+              </div>
+            )}
 
-              {featuredProducts.length > 4 && (
-                <button
-                  onClick={() => {
-                    const container = document.getElementById('category-featured');
-                    if (!container) return;
-                    const row = container.querySelector('.product-row');
-                    const firstItem = row && row.children && row.children[0];
-                    if (!row || !firstItem) return;
-                    const styles = getComputedStyle(row);
-                    const gapRaw = styles.columnGap || styles.gap || '0';
-                    const gap = parseFloat(gapRaw) || 0;
-                    const itemWidth = firstItem.getBoundingClientRect().width + gap;
-                    const total = row.children.length;
-                    const maxStart = Math.max(0, total - 4);
-                    const currentIndex = Math.round(container.scrollLeft / itemWidth);
-                    const nextIndex = Math.min(maxStart, currentIndex + 1);
-                    container.scrollTo({ left: Math.round(nextIndex * itemWidth), behavior: 'smooth' });
-                  }}
-                  className="absolute right-0 top-1/2 -translate-y-1/2 z-20 bg-black/70 hover:bg-black text-white w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-lg hover:scale-110"
-                  aria-label="Scroll right"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </button>
-              )}
-
-              <div 
-                id={`category-featured`}
-                className="overflow-x-auto scrollbar-hide pb-4 scroll-smooth snap-x snap-mandatory"
-                style={{ maxWidth: '1048px' }}
-              >
-                <div className="product-row flex gap-2" style={{ width: 'max-content' }}>
-                  {featuredProducts.map((product) => (
-                    <div key={product.id} className="w-64 flex-shrink-0 snap-start">
-                      <ProductCard
-                        product={product}
-                        availableSizes={getAvailableSizes(product.id)}
-                        selectedSize={selectedSizes[product.id]}
-                        onSizeSelect={handleSizeSelect}
-                        handleAddToCart={handleAddToCart}
-                        handleDelete={handleDelete}
-                        handleImageClick={handleImageClick}
-                        isAdmin={isAdmin}
-                      />
-                    </div>
+            {/* Products Grid */}
+            {filteredProducts.length > 0 ? (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {visibleProducts.map((product) => (
+                    <ProductCard
+                      key={product.id}
+                      product={product}
+                      categoryId={categoryId}
+                      availableSizes={getAvailableSizes(product.id)}
+                      selectedSize={selectedSizes[product.id]}
+                      onSizeSelect={handleSizeSelect}
+                      handleAddToCart={handleAddToCart}
+                      handleDelete={handleDelete}
+                      handleImageClick={handleImageClick}
+                      isAdmin={isAdmin}
+                    />
                   ))}
                 </div>
-              </div>
-            </div>
-          </div>
-        )}
 
-        {/* Khi đang tìm kiếm, hiển thị theo danh mục */}
-        {isSearching && (
-          <h2 className="text-3xl font-bold mb-6">
-            Kết quả tìm kiếm cho "{searchName}"
-          </h2>
-        )}
-
-        {categorizedProducts.map(
-          (cat) =>
-            cat.products.length > 0 && (
-              <div key={cat.id} className="relative">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-2xl font-bold uppercase">{cat.name}</h2>
-                  <Link to={`/category/${cat.id}`} className="text-sm text-blue-600 hover:underline">
-                    Xem thêm
-                  </Link>
-                </div>
-                
-                {/* Horizontal scrollable product list with arrows */}
-                <div className="relative overflow-hidden">
-                  {/* Left arrow */}
-                  {cat.products.length > 4 && (
+                {/* Load More Button */}
+                {hasMore && (
+                  <div className="mt-10 flex justify-center">
                     <button
-                      onClick={() => {
-                        const container = document.getElementById(`category-${cat.id}`);
-                        if (!container) return;
-                        const row = container.querySelector('.product-row');
-                        const firstItem = row && row.children && row.children[0];
-                        if (!row || !firstItem) return;
-                        const styles = getComputedStyle(row);
-                        const gapRaw = styles.columnGap || styles.gap || '0';
-                        const gap = parseFloat(gapRaw) || 0;
-                        const itemWidth = firstItem.getBoundingClientRect().width + gap;
-                        const total = row.children.length;
-                        const maxStart = Math.max(0, total - 4);
-                        const currentIndex = Math.round(container.scrollLeft / itemWidth);
-                        const prevIndex = Math.max(0, Math.min(maxStart, currentIndex - 1));
-                        container.scrollTo({ left: Math.round(prevIndex * itemWidth), behavior: 'smooth' });
-                      }}
-                      className="absolute left-0 top-1/2 -translate-y-1/2 z-20 bg-black/70 hover:bg-black text-white w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-lg hover:scale-110"
-                      aria-label="Scroll left"
+                      onClick={handleLoadMore}
+                      className="bg-blue-600 text-white px-8 py-3 rounded-full hover:bg-blue-700 transition font-medium shadow-lg"
                     >
-                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                      </svg>
+                      Xem thêm sản phẩm ▼
                     </button>
-                  )}
-                  
-                  {/* Right arrow */}
-                  {cat.products.length > 4 && (
-                    <button
-                      onClick={() => {
-                        const container = document.getElementById(`category-${cat.id}`);
-                        if (!container) return;
-                        const row = container.querySelector('.product-row');
-                        const firstItem = row && row.children && row.children[0];
-                        if (!row || !firstItem) return;
-                        const styles = getComputedStyle(row);
-                        const gapRaw = styles.columnGap || styles.gap || '0';
-                        const gap = parseFloat(gapRaw) || 0;
-                        const itemWidth = firstItem.getBoundingClientRect().width + gap;
-                        const total = row.children.length;
-                        const maxStart = Math.max(0, total - 4);
-                        const currentIndex = Math.round(container.scrollLeft / itemWidth);
-                        const nextIndex = Math.min(maxStart, currentIndex + 1);
-                        container.scrollTo({ left: Math.round(nextIndex * itemWidth), behavior: 'smooth' });
-                      }}
-                      className="absolute right-0 top-1/2 -translate-y-1/2 z-20 bg-black/70 hover:bg-black text-white w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-lg hover:scale-110"
-                      aria-label="Scroll right"
-                    >
-                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
-                    </button>
-                  )}
-
-                  <div 
-                    id={`category-${cat.id}`}
-                    className="overflow-x-auto scrollbar-hide pb-4 scroll-smooth snap-x snap-mandatory"
-                    style={{ maxWidth: '1048px' }}
-                  >
-                    <div className="product-row flex gap-2" style={{ width: 'max-content' }}>
-                      {cat.products.map((product) => (
-                        <div key={product.id} className="w-64 flex-shrink-0 snap-start">
-                          <ProductCard
-                            product={product}
-                            availableSizes={getAvailableSizes(product.id)}
-                            selectedSize={selectedSizes[product.id]}
-                            onSizeSelect={handleSizeSelect}
-                            handleAddToCart={handleAddToCart}
-                            handleDelete={handleDelete}
-                            handleImageClick={handleImageClick}
-                            isAdmin={isAdmin}
-                          />
-                        </div>
-                      ))}
-                    </div>
                   </div>
-                </div>
-              </div>
-            )
-        )}
+                )}
 
-        {/* Nếu không tìm thấy sản phẩm */}
-        {isSearching &&
-          filteredProducts.length === 0 && (
-            <p className="text-gray-500 text-lg text-center py-10">
-              🛒 Không tìm thấy sản phẩm nào.
-            </p>
+                {/* Collapse Button */}
+                {visibleCount > 8 && (
+                  <div className="mt-4 flex justify-center">
+                    <button
+                      onClick={handleCollapse}
+                      className="bg-gray-600 text-white px-8 py-3 rounded-full hover:bg-gray-700 transition font-medium shadow-lg"
+                    >
+                      Thu gọn ▲
+                    </button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="text-center py-20">
+                <p className="text-gray-500 text-lg">
+                  🛒 Không tìm thấy sản phẩm nào trong danh mục này.
+                </p>
+              </div>
             )}
           </div>
         </div>
@@ -584,15 +390,12 @@ export default function ProductList() {
   );
 }
 
-// Resolve image URL for products:
-// - If image is an absolute URL (http/https) -> keep it
-// - If image starts with '/' -> treat as absolute path
-// - Otherwise, assume it's stored in frontend's `public/images` and prefix `/images/`
+// Resolve image URL
 const resolveImage = (img) => {
-  if (!img) return '/images/placeholder.png'; // optional fallback
+  if (!img) return '/images/placeholder.png';
   const trimmed = String(img).trim();
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
-  if (trimmed.startsWith('/')) return encodeURI(trimmed);
+  if (trimmed.startsWith('/')) return trimmed;
   return `/images/${encodeURI(trimmed)}`;
 };
 
@@ -766,7 +569,7 @@ function Header({ user, handleLogout, products = [], onSearch, cartCount = 0 }) 
                     onClick={handleLogout}
                     className="w-full text-left px-4 py-2 hover:bg-gray-100 transition text-red-600"
                   >
-                    🚪 Đăng xuất
+                    🚺 Đăng xuất
                   </button>
                 </div>
               )}
@@ -787,8 +590,10 @@ function Header({ user, handleLogout, products = [], onSearch, cartCount = 0 }) 
   );
 }
 
+// ProductCard component
 const ProductCard = ({ 
-  product, 
+  product,
+  categoryId,
   availableSizes, 
   selectedSize, 
   onSizeSelect, 
@@ -810,10 +615,6 @@ const ProductCard = ({
         onClick={() => handleImageClick(product.id)}
         onMouseEnter={() => setOverlayOpen(true)}
         onMouseLeave={() => setOverlayOpen(false)}
-        onTouchStart={(e) => {
-          e.stopPropagation();
-          setOverlayOpen((v) => !v);
-        }}
       >
         <img
           src={resolveImage(product.image)}
@@ -831,25 +632,25 @@ const ProductCard = ({
             <div className="space-y-2">
               <div className="flex flex-wrap gap-2">
                 {availableSizes.map((sizeObj) => {
-                  const out = Number(sizeObj.stock) <= 0;
                   const isSelected = selectedSize === sizeObj.size;
+                  const isOutOfStock = sizeObj.stock <= 0;
                   return (
                     <button
                       key={sizeObj.id}
-                      className={`px-3 py-1 text-[11px] rounded-full shadow-sm border transition ${
-                        out 
-                          ? 'bg-gray-200 text-gray-400 cursor-not-allowed opacity-60' 
-                          : isSelected
-                            ? 'bg-yellow-400 text-gray-900 border-yellow-500 font-bold'
-                            : 'bg-white text-gray-900 hover:shadow hover:border-gray-300 hover:bg-gray-50'
-                      }`}
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (out) return;
-                        onSizeSelect(product.id, sizeObj.size);
+                        if (!isOutOfStock) {
+                          onSizeSelect(product.id, sizeObj.size);
+                        }
                       }}
-                      aria-disabled={out}
-                      title={out ? 'Hết hàng' : `Còn ${sizeObj.stock}`}
+                      disabled={isOutOfStock}
+                      className={`text-[11px] font-semibold px-3 py-1 rounded-full transition ${
+                        isOutOfStock
+                          ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                          : isSelected
+                          ? 'bg-white text-indigo-600 shadow-md'
+                          : 'bg-white/20 text-white hover:bg-white/30'
+                      }`}
                     >
                       {sizeObj.size}
                     </button>
@@ -861,7 +662,7 @@ const ProductCard = ({
                   className="w-full bg-white text-indigo-600 font-semibold text-xs py-2 rounded-full hover:bg-gray-100 transition shadow-sm"
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleAddToCart(product);
+                    handleAddToCart(product, selectedSize);
                   }}
                 >
                   ➕ Thêm vào giỏ hàng
@@ -905,6 +706,7 @@ const ProductCard = ({
           <div className="flex gap-2 mt-2">
             <Link
               to={`/edit/${product.id}`}
+              state={{ returnTo: `/category/${categoryId}` }}
               className="flex-1 text-center text-xs font-medium text-white bg-blue-500 px-3 py-1.5 rounded-full hover:bg-blue-600 transition"
             >
               Sửa

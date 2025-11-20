@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { getAllProducts, updateProduct, getAllCategories } from "../../api";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 
 export default function EditProduct() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const returnTo = location.state?.returnTo || "/";
+  const activeTab = location.state?.activeTab;
   const [product, setProduct] = useState(null);
   const [categories, setCategories] = useState([]);
 
@@ -28,7 +31,7 @@ export default function EditProduct() {
       const found = data.find((p) => p.id === parseInt(id));
       if (!found) {
         alert("❌ Không tìm thấy sản phẩm!");
-        navigate("/");
+        navigate(returnTo, activeTab ? { state: { activeTab } } : undefined);
       } else {
         setProduct({ 
           ...found, 
@@ -64,7 +67,7 @@ export default function EditProduct() {
       const res = await updateProduct(id, updated);
       if (res) {
         alert("✅ Cập nhật sản phẩm thành công!");
-        navigate("/");
+        navigate(returnTo, activeTab ? { state: { activeTab } } : undefined);
       } else {
         alert("❌ Lỗi khi cập nhật sản phẩm!");
       }

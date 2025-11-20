@@ -4,7 +4,15 @@ import { Link, useNavigate } from "react-router-dom";
 export default function Header() {
   const [user, setUser] = useState(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [cartCount, setCartCount] = useState(0);
   const navigate = useNavigate();
+
+  // Hàm cập nhật số lượng sản phẩm trong giỏ hàng
+  const updateCartCount = () => {
+    const cart = JSON.parse(localStorage.getItem('cart') || '[]');
+    const totalItems = cart.reduce((sum, item) => sum + (item.quantity || 1), 0);
+    setCartCount(totalItems);
+  };
 
   // Lấy user từ localStorage khi component mount
   useEffect(() => {
@@ -12,6 +20,26 @@ export default function Header() {
     if (storedUser) {
       setUser(JSON.parse(storedUser));
     }
+    
+    // Cập nhật cart count lần đầu
+    updateCartCount();
+    
+    // Lắng nghe sự kiện storage để cập nhật khi cart thay đổi từ tab khác
+    const handleStorageChange = (e) => {
+      if (e.key === 'cart') {
+        updateCartCount();
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Polling để cập nhật cart count định kỳ (cho trường hợp cùng tab)
+    const interval = setInterval(updateCartCount, 1000);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(interval);
+    };
   }, []);
 
   const toggleDropdown = () => setDropdownOpen(!dropdownOpen);
@@ -33,8 +61,13 @@ export default function Header() {
 
         {/* Menu */}
         <div className="flex space-x-4 text-gray-700 font-medium items-center relative flex-shrink-0">
-          <Link to="/cart" className="hover:text-yellow-500 transition">
+          <Link to="/cart" className="relative hover:text-yellow-500 transition">
             🛒 Giỏ hàng
+            {cartCount > 0 && (
+              <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center animate-pulse">
+                {cartCount}
+              </span>
+            )}
           </Link>
 
           {user ? (
