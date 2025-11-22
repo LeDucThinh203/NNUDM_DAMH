@@ -27,10 +27,9 @@ export default function Register() {
     setLoading(true);
     try {
       const user = await api.register({ email, username, password, role: "user" });
-      if (user && user.id && user.token) {
-        Session.setUser(user.id, user.username, user.role, user.email, user.token);
-        setSuccess("Đăng ký thành công! Chuyển sang trang chủ...");
-        setTimeout(() => navigate("/"), 2000);
+      if (user && user.id) {
+        setSuccess("Đăng ký thành công! Chuyển sang trang đăng nhập...");
+        setTimeout(() => navigate("/login"), 2000);
       } else {
         setError("Đăng ký thất bại, thử lại sau!");
       }

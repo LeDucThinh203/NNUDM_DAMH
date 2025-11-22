@@ -6,14 +6,13 @@ import ChangePassword from "./ChangePassword";
 import ManageAddress from "./ManageAddress";
 import Address from "./Address";
 import OrderManager from "./OrderManager";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 
 export default function UserDashboard() {
   const user = useMemo(() => (Session.isLoggedIn() ? Session.getUser() : null), []);
   const [activeTab, setActiveTab] = useState("info");
   const [menuOpen, setMenuOpen] = useState(true);
   const [dropdownOpen, setDropdownOpen] = useState(true);
-  const navigate = useNavigate();
   const location = useLocation();
 
   // Xử lý activeTab từ state khi navigate về

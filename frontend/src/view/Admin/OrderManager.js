@@ -118,18 +118,26 @@ export default function OrderManager() {
     setDetailModal({ show: false, order: null });
   };
 
-  // Kiểm tra trạng thái thanh toán (nếu đã nhận hàng và COD thì coi như đã thanh toán)
+  // Kiểm tra trạng thái thanh toán
   const getPaymentStatus = (order) => {
-    // Đã thanh toán qua VNPay (hoặc đã chọn VNPay)
+    // COD: CHỈ kiểm tra status, KHÔNG dựa vào is_paid
+    if (order.payment_method === 'cod') {
+      if (order.status === 'received') {
+        return { text: 'Đã TT', color: 'text-green-600' };
+      } else {
+        return { text: 'Chưa TT', color: 'text-red-600' };
+      }
+    }
+    // VNPay: luôn đã thanh toán
     if (order.payment_method === 'vnpay') {
       return { text: 'Đã TT', color: 'text-green-600' };
     }
-    // Đã thanh toán (is_paid = 1) hoặc thanh toán qua bank
-    if (order.is_paid || order.payment_method === 'bank') {
+    // Bank: luôn đã thanh toán
+    if (order.payment_method === 'bank') {
       return { text: 'Đã TT', color: 'text-green-600' };
     }
-    // COD và đã nhận hàng
-    if (order.status === 'received' && order.payment_method === 'cod') {
+    // Các trường hợp khác kiểm tra is_paid
+    if (order.is_paid) {
       return { text: 'Đã TT', color: 'text-green-600' };
     }
     return { text: 'Chưa TT', color: 'text-red-600' };

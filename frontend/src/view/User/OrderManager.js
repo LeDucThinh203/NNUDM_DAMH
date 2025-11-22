@@ -1,5 +1,5 @@
 // src/view/User/OrderManager.js
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { getAllOrders, deleteOrder } from "../../api";
 import Session from "../../Session/session";
@@ -16,31 +16,27 @@ export default function OrderManager() {
   const user = Session.getUser();
   const navigate = useNavigate();
 
+  const fetchOrders = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await getAllOrders();
+      const userOrders = data.filter(order => order.account_id === user.id);
+      const sortedOrders = userOrders.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      setOrders(sortedOrders);
+      setLoading(false);
+    } catch (err) {
+      setError(err.message || "Lỗi khi tải danh sách đơn hàng");
+      setLoading(false);
+    }
+  }, [user.id]);
+
   useEffect(() => {
     fetchOrders();
-  }, []);
+  }, [fetchOrders]);
 
   useEffect(() => {
     setDisplayedOrders(orders.slice(0, visibleCount));
   }, [orders, visibleCount]);
-
-  const fetchOrders = async () => {
-    try {
-      setLoading(true);
-      const allOrders = await getAllOrders();
-      
-      const userOrders = allOrders
-        .filter(order => order.account_id === user.id)
-        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-
-      setOrders(userOrders);
-    } catch (err) {
-      setError("Lỗi khi tải danh sách đơn hàng");
-      console.error("Lỗi:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleShowDetail = (order) => {
     setSelectedOrder(order);
@@ -107,18 +103,27 @@ export default function OrderManager() {
     return new Date(dateString).toLocaleString('vi-VN');
   };
 
-  // Kiểm tra trạng thái thanh toán (nếu đã nhận hàng và COD thì coi như đã thanh toán)
+  // Kiểm tra trạng thái thanh toán
   const getPaymentStatus = (order) => {
-    // Đã thanh toán qua VNPay (hoặc đã chọn VNPay)
+    // COD: CHỈ kiểm tra status, KHÔNG dựa vào is_paid
+    if (order.payment_method === 'cod') {
+      if (order.status === 'received') {
+        return { text: 'Đã TT', color: 'text-green-600', canView: true };
+      } else {
+        // Các trạng thái khác: pending, confirmed, shipping
+        return { text: 'Chưa TT', color: 'text-red-600', canView: true };
+      }
+    }
+    // VNPay: luôn đã thanh toán
     if (order.payment_method === 'vnpay') {
       return { text: 'Đã TT', color: 'text-green-600', canView: true };
     }
-    // Đã thanh toán (is_paid = 1) hoặc thanh toán qua bank
-    if (order.is_paid || order.payment_method === 'bank') {
+    // Bank: luôn đã thanh toán
+    if (order.payment_method === 'bank') {
       return { text: 'Đã TT', color: 'text-green-600', canView: true };
     }
-    // COD và đã nhận hàng
-    if (order.status === 'received' && order.payment_method === 'cod') {
+    // Các trường hợp khác kiểm tra is_paid
+    if (order.is_paid) {
       return { text: 'Đã TT', color: 'text-green-600', canView: true };
     }
     return { text: 'Chưa TT', color: 'text-red-600', canView: false };
@@ -299,8 +304,8 @@ export default function OrderManager() {
 
       {/* Modal chi tiết đơn hàng */}
       {showDetailModal && selectedOrder && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end justify-center z-50 pr-4 pb-8 pl-64">
+          <div className="bg-white rounded-lg max-w-5xl w-full max-h-[80vh] overflow-y-auto">
             <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
               <h3 className="text-2xl font-bold text-gray-900">Chi tiết đơn hàng #{selectedOrder.id}</h3>
               <button
