@@ -55,11 +55,11 @@ export default function OrderManager() {
     }
 
     try {
-      // Tự động đánh dấu đã thanh toán khi đơn hàng COD chuyển sang received
-      const updateData = { status: updateModal.newStatus };
-      if (updateModal.newStatus === 'received' && updateModal.order.payment_method === 'cod') {
-        updateData.is_paid = true;
-      }
+      // Cập nhật is_paid: received = 0, các trạng thái khác = 1
+      const updateData = { 
+        status: updateModal.newStatus,
+        is_paid: updateModal.newStatus === 'received' ? 0 : 1
+      };
 
       await updateOrderStatus(updateModal.order.id, updateData);
       alert("Cập nhật trạng thái thành công!");
@@ -70,7 +70,7 @@ export default function OrderManager() {
           order.id === updateModal.order.id ? { 
             ...order, 
             status: updateModal.newStatus,
-            is_paid: updateData.is_paid !== undefined ? updateData.is_paid : order.is_paid
+            is_paid: updateData.is_paid
           } : order
         )
       );
@@ -861,8 +861,8 @@ export default function OrderManager() {
 
       {/* Modal chi tiết đơn hàng */}
       {detailModal.show && detailModal.order && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end justify-center z-50 p-4 pb-16">
+          <div className="bg-white rounded-lg w-full max-w-3xl max-h-[80vh] overflow-y-auto ml-40">
             <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
               <h3 className="text-2xl font-bold text-gray-900">Chi tiết đơn hàng #{detailModal.order.id}</h3>
               <button
