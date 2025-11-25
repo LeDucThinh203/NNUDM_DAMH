@@ -1,6 +1,10 @@
 // ================= Base =================
 import Session from './Session/session';
 
+// API Base URL - sử dụng biến môi trường hoặc empty string để dùng proxy
+// Khi REACT_APP_API_URL trống, requests sẽ đi qua proxy trong package.json
+const API_BASE_URL = process.env.REACT_APP_API_URL || "";
+
 const safeJson = async (res) => {
   try {
     return await res.json();
@@ -26,7 +30,7 @@ const getAuthHeaders = () => {
 };
 
 // ================= Product API =================
-const PRODUCT_API_URL = "http://localhost:3006/product";
+const PRODUCT_API_URL = `${API_BASE_URL}/product`;
 
 export const getAllProducts = async () => {
   const res = await fetch(PRODUCT_API_URL);
@@ -73,7 +77,7 @@ export const deleteProduct = async (id) => {
 };
 
 // ================= Category API =================
-const CATEGORY_API_URL = "http://localhost:3006/category";
+const CATEGORY_API_URL = `${API_BASE_URL}/category`;
 
 export const getAllCategories = async () => {
   const res = await fetch(CATEGORY_API_URL);
@@ -117,7 +121,7 @@ export const deleteCategory = async (id) => {
 };
 
 // ================= Size API =================
-const SIZE_API_URL = "http://localhost:3006/sizes";
+const SIZE_API_URL = `${API_BASE_URL}/sizes`;
 
 export const getAllSizes = async () => {
   const res = await fetch(SIZE_API_URL);
@@ -161,7 +165,7 @@ export const deleteSize = async (id) => {
 };
 
 // ================= Account API =================
-const ACCOUNT_API_URL = "http://localhost:3006/account";
+const ACCOUNT_API_URL = `${API_BASE_URL}/account`;
 
 export const login = async ({ email, password }) => {
   const res = await fetch(`${ACCOUNT_API_URL}/login`, {
@@ -243,7 +247,7 @@ export const resetPassword = async (token, newPassword) => {
 };
 
 // ================= Address API =================
-const ADDRESS_API_URL = "http://localhost:3006/address";
+const ADDRESS_API_URL = `${API_BASE_URL}/address`;
 
 export const getAllAddresses = async () => {
   const res = await fetch(ADDRESS_API_URL);
@@ -288,7 +292,7 @@ export const deleteAddress = async (id) => {
 
 
 // ================= AI Chat API =================
-const AI_API_URL = "http://localhost:3006/ai";
+const AI_API_URL = `${API_BASE_URL}/ai`;
 
 export const aiChat = async ({ message, userId = null, sessionId = null, topK = 5, fast = false }) => {
   const res = await fetch(`${AI_API_URL}/chat`, {
@@ -310,7 +314,7 @@ export const aiHistory = async (sessionId) => {
 };
 
 // ================= ProductSize API =================
-const PRODUCT_SIZE_API_URL = "http://localhost:3006/product_sizes";
+const PRODUCT_SIZE_API_URL = `${API_BASE_URL}/product_sizes`;
 
 export const getAllProductSizes = async () => {
   const res = await fetch(PRODUCT_SIZE_API_URL);
@@ -348,7 +352,7 @@ export const deleteProductSize = async (id) => {
 };
 
 // ================= Order API =================
-const ORDER_API_URL = "http://localhost:3006/orders";
+const ORDER_API_URL = `${API_BASE_URL}/orders`;
 
 export const createOrder = async (data) => {
   console.log("📤 createOrder API call with data:", data);
@@ -475,7 +479,7 @@ export const deleteOrder = async (id) => {
 };
 
 // ================= Order Details API =================
-const ORDER_DETAILS_API_URL = "http://localhost:3006/order_details";
+const ORDER_DETAILS_API_URL = `${API_BASE_URL}/order_details`;
 
 export const getAllOrderDetails = async () => {
   const res = await fetch(ORDER_DETAILS_API_URL);
@@ -519,7 +523,7 @@ export const deleteOrderDetail = async (id) => {
 };
 
 // ================= Rating API =================
-const RATING_API_URL = "http://localhost:3006/rating";
+const RATING_API_URL = `${API_BASE_URL}/rating`;
 
 export const getAllRatings = async () => {
   const res = await fetch(RATING_API_URL);
@@ -564,7 +568,7 @@ export const deleteRating = async (id) => {
 
 
 // ================= VNPay API =================
-const VNPAY_API_URL = "http://localhost:3006/vnpay";
+const VNPAY_API_URL = `${API_BASE_URL}/vnpay`;
 
 export const createVNPayPaymentUrl = async (data) => {
   const res = await fetch(`${VNPAY_API_URL}/create_payment_url`, {

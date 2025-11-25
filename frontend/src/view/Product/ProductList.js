@@ -487,8 +487,12 @@ const resolveImage = (img) => {
   if (!img) return '/images/placeholder.png'; // optional fallback
   const trimmed = String(img).trim();
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
-  if (trimmed.startsWith('/')) return encodeURI(trimmed);
-  return `/images/${encodeURI(trimmed)}`;
+  // Encode each part of the path separately to handle special characters like ®
+  if (trimmed.startsWith('/')) {
+    const parts = trimmed.split('/');
+    return parts.map((part, idx) => idx === 0 ? part : encodeURIComponent(part)).join('/');
+  }
+  return `/images/${encodeURIComponent(trimmed)}`;
 };
 
 /* Header component */
@@ -576,6 +580,7 @@ function Header({ user, handleLogout, products = [], onSearch, cartCount = 0 }) 
                   <img
                     src={resolveImage(p.image)}
                     alt={p.name}
+                    onError={(e) => { e.target.src = '/images/placeholder.png'; }}
                     className="w-10 h-10 object-cover rounded"
                   />
                   <div className="flex-1 text-sm text-left">
@@ -713,6 +718,7 @@ const ProductCard = ({
         <img
           src={resolveImage(product.image)}
           alt={product.name}
+          onError={(e) => { e.target.src = '/images/placeholder.png'; }}
           className="peer w-full h-full object-cover transition-transform duration-500 ease-in-out group-hover/image:scale-105"
         />
         <div
