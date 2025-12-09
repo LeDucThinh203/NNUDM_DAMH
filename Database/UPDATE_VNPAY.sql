@@ -1,15 +1,19 @@
--- ================================================
+-- =====================================================
 -- SQL Script: Cập nhật database hỗ trợ VNPay
--- ================================================
-
-USE `my_store`;
+-- (FREE HOSTING COMPATIBLE)
+-- =====================================================
+--
+-- ⚠️ Import vào database có sẵn (vd: sql12811307)
+-- ⚠️ KHÔNG dùng lệnh USE (free hosting không cho phép)
+--
+-- Compatible with: FreeSQLDatabase.com, db4free.net
 
 -- Bước 1: Thêm cột payment_info vào bảng orders (nếu chưa có)
 -- Kiểm tra và thêm cột nếu chưa tồn tại
 SET @col_exists = 0;
 SELECT COUNT(*) INTO @col_exists 
 FROM INFORMATION_SCHEMA.COLUMNS 
-WHERE TABLE_SCHEMA = 'my_store' 
+WHERE TABLE_SCHEMA = DATABASE()
   AND TABLE_NAME = 'orders' 
   AND COLUMN_NAME = 'payment_info';
 
@@ -22,17 +26,18 @@ EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
 -- Bước 2: Cập nhật constraint payment_method để hỗ trợ vnpay
-ALTER TABLE `orders` DROP CHECK `chk_payment_method`;
+-- ⚠️ Free hosting có thể không hỗ trợ DROP CHECK, bỏ qua phần này nếu báo lỗi
+-- Constraint đã được định nghĩa trong DBWebBanDoBongDa_FREE_HOSTING.sql
 
-ALTER TABLE `orders` 
-ADD CONSTRAINT `chk_payment_method` 
-CHECK (`payment_method` IN ('cod', 'bank', 'vnpay'));
+-- DROP và tạo lại constraint (chỉ chạy nếu database hỗ trợ)
+-- ALTER TABLE `orders` DROP CHECK `chk_payment_method`;
+-- ALTER TABLE `orders` ADD CONSTRAINT `chk_payment_method` CHECK (`payment_method` IN ('cod', 'bank', 'vnpay'));
 
 -- Bước 3: Thêm index để tối ưu truy vấn (nếu chưa có)
 SET @idx1_exists = 0;
 SELECT COUNT(*) INTO @idx1_exists 
 FROM INFORMATION_SCHEMA.STATISTICS 
-WHERE TABLE_SCHEMA = 'my_store' 
+WHERE TABLE_SCHEMA = DATABASE()
   AND TABLE_NAME = 'orders' 
   AND INDEX_NAME = 'idx_payment_method';
 
@@ -47,7 +52,7 @@ DEALLOCATE PREPARE stmt1;
 SET @idx2_exists = 0;
 SELECT COUNT(*) INTO @idx2_exists 
 FROM INFORMATION_SCHEMA.STATISTICS 
-WHERE TABLE_SCHEMA = 'my_store' 
+WHERE TABLE_SCHEMA = DATABASE()
   AND TABLE_NAME = 'orders' 
   AND INDEX_NAME = 'idx_is_paid';
 

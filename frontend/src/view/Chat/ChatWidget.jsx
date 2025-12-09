@@ -2,6 +2,18 @@ import React, { useState, useRef, useEffect } from 'react';
 import Session from '../../Session/session';
 import './ChatWidget.css';
 
+// Resolve image URL for products
+const resolveImage = (img) => {
+  if (!img) return '/images/placeholder.png';
+  const trimmed = String(img).trim();
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
+  if (trimmed.startsWith('/')) {
+    const parts = trimmed.split('/');
+    return parts.map((part, idx) => idx === 0 ? part : encodeURIComponent(part)).join('/');
+  }
+  return `/images/${encodeURIComponent(trimmed)}`;
+};
+
 const ChatWidget = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
@@ -14,7 +26,7 @@ const ChatWidget = () => {
   ]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [sessionId] = useState(() => `chat-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  const [sessionId, setSessionId] = useState(() => `chat-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   const messagesEndRef = useRef(null);
 
   // Auto scroll to bottom when new messages arrive
@@ -26,6 +38,13 @@ const ChatWidget = () => {
     scrollToBottom();
   }, [messages]);
 
+  // Scroll to bottom when chat is opened
+  useEffect(() => {
+    if (isOpen) {
+      scrollToBottom();
+    }
+  }, [isOpen]);
+
   const toggleChat = () => {
     setIsOpen(!isOpen);
     if (!isOpen) {
@@ -35,6 +54,27 @@ const ChatWidget = () => {
 
   const toggleMinimize = () => {
     setIsMinimized(!isMinimized);
+  };
+
+  // Reset chat - create new session and clear all messages
+  const handleNewChat = () => {
+    // Create new session ID
+    const newSessionId = `chat-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    setSessionId(newSessionId);
+    
+    // Reset messages to initial state
+    setMessages([
+      {
+        type: 'bot',
+        text: 'Xin chào! Tôi là trợ lý AI. Tôi có thể giúp gì cho bạn?',
+        timestamp: new Date()
+      }
+    ]);
+    
+    // Clear input
+    setInputMessage('');
+    
+    console.log(`[Chat] New chat session started: ${newSessionId}`);
   };
 
   const handleSendMessage = async () => {
@@ -135,18 +175,12 @@ const ChatWidget = () => {
             <div className="chat-actions">
               <button 
                 className="chat-action-btn" 
-                onClick={toggleMinimize}
-                title={isMinimized ? "Phóng to" : "Thu nhỏ"}
+                onClick={handleNewChat}
+                title="Tạo đoạn chat mới"
               >
-                {isMinimized ? (
-                  <svg viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-                  </svg>
-                ) : (
-                  <svg viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M19 13H5v-2h14v2z"/>
-                  </svg>
-                )}
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                </svg>
               </button>
               <button 
                 className="chat-action-btn" 
@@ -173,33 +207,19 @@ const ChatWidget = () => {
                       {message.products && message.products.length > 0 && (
                         <div className="message-products">
                           {message.products.map((product, pIndex) => (
-                            <div key={pIndex} className="product-card" style={{ 
-                              display: 'flex', 
-                              flexDirection: 'column',
-                              gap: '8px',
-                              padding: '12px',
-                              border: '1px solid #e0e0e0',
-                              borderRadius: '8px',
-                              backgroundColor: '#fff'
-                            }}>
+                            <div key={pIndex} className="product-card">
                               {product.image && (
                                 <img 
-                                  src={product.image} 
+                                  src={resolveImage(product.image)} 
                                   alt={product.name}
                                   className="product-image"
-                                  style={{
-                                    width: '100%',
-                                    height: 'auto',
-                                    borderRadius: '6px',
-                                    objectFit: 'cover'
-                                  }}
                                   onError={(e) => {
                                     console.error('Image load error:', product.image);
                                     e.target.style.display = 'none';
                                   }}
                                 />
                               )}
-                              <div className="product-info" style={{ padding: '4px 0' }}>
+                              <div className="product-info">
                                 <h4 style={{ 
                                   margin: '0 0 8px 0',
                                   fontSize: '0.95em',

@@ -66,6 +66,16 @@ app.get('/', (req, res) => {
   `);
 });
 
+// --- Health check endpoint for Render ---
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'OK', 
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
 // --- Start server ---
 app.listen(PORT, '0.0.0.0', async () => {
   console.log(`🚀 Server running at http://localhost:${PORT}`);

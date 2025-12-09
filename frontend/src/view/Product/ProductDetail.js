@@ -14,6 +14,18 @@ import {
   getAllOrders
 } from "../../api";
 
+// Resolve image URL for products
+const resolveImage = (img) => {
+  if (!img) return '/images/placeholder.png';
+  const trimmed = String(img).trim();
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
+  if (trimmed.startsWith('/')) {
+    const parts = trimmed.split('/');
+    return parts.map((part, idx) => idx === 0 ? part : encodeURIComponent(part)).join('/');
+  }
+  return `/images/${encodeURIComponent(trimmed)}`;
+};
+
 export default function ProductDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -296,7 +308,7 @@ export default function ProductDetail() {
         {/* Hình ảnh sản phẩm */}
         <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
           <img
-            src={product.image}
+            src={resolveImage(product.image)}
             alt={product.name}
             className="w-full h-96 object-cover"
           />

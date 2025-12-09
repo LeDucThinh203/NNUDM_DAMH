@@ -1,9 +1,13 @@
-USE my_store;
-
---
+-- =====================================================
+-- AI Performance Indexes (FREE HOSTING COMPATIBLE)
+-- =====================================================
 -- Idempotent index creation helpers using information_schema + dynamic SQL
 -- Re-running this file will not error if indexes already exist.
 --
+-- ⚠️ Import vào database có sẵn (vd: sql12811307)
+-- ⚠️ KHÔNG dùng lệnh USE (free hosting không cho phép)
+--
+-- Compatible with: FreeSQLDatabase.com, db4free.net
 
 -- ============================================
 -- Product table indexes for faster search

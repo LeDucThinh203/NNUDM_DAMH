@@ -18,10 +18,11 @@ SET @MYSQLDUMP_TEMP_LOG_BIN = @@SESSION.SQL_LOG_BIN;
 SET @@SESSION.SQL_LOG_BIN= 0;
 
 --
--- GTID state at the beginning of the backup 
+-- Create and use database
 --
 
-SET @@GLOBAL.GTID_PURGED=/*!80000 '+'*/ '16ea95b4-b02f-11f0-bb02-201e88f29288:1-1020';
+CREATE DATABASE IF NOT EXISTS `my_store` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE `my_store`;
 
 --
 -- Table structure for table `account`

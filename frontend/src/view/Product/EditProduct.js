@@ -2,6 +2,18 @@ import React, { useState, useEffect } from "react";
 import { getAllProducts, updateProduct, getAllCategories } from "../../api";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 
+// Resolve image URL for products
+const resolveImage = (img) => {
+  if (!img) return '/images/placeholder.png';
+  const trimmed = String(img).trim();
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
+  if (trimmed.startsWith('/')) {
+    const parts = trimmed.split('/');
+    return parts.map((part, idx) => idx === 0 ? part : encodeURIComponent(part)).join('/');
+  }
+  return `/images/${encodeURIComponent(trimmed)}`;
+};
+
 export default function EditProduct() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -156,7 +168,7 @@ export default function EditProduct() {
             <div className="flex-1 text-center">
               <p className="text-sm mb-1">Ảnh cũ</p>
               <img
-                src={product.image}
+                src={resolveImage(product.image)}
                 alt="cũ"
                 className={`rounded shadow-sm w-full h-auto object-cover ${
                   product.newImagePreview ? "opacity-50" : ""

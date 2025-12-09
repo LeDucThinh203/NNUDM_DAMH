@@ -1,11 +1,16 @@
--- AI Data Cleanup and Constraints (Idempotent & Safe)
+-- =====================================================
+-- AI Data Cleanup and Constraints (FREE HOSTING COMPATIBLE)
+-- =====================================================
 -- Use this script to:
---  1) Safely remove orphan rows from product_embeddings (safe update mode compatible)
+--  1) Safely remove orphan rows from product_embeddings
 --  2) Add recommended FK/UNIQUE/CHECK constraints
 --  3) Add helpful indexes for AI features
--- Run after importing DBWebBanDoBongDa.sql and AI_Schema.sql
-
-USE my_store;
+-- 
+-- ⚠️ Run this AFTER importing DBWebBanDoBongDa_FREE_HOSTING.sql
+-- ⚠️ Import vào database có sẵn (vd: sql12811307)
+-- ⚠️ KHÔNG dùng lệnh USE (free hosting không cho phép)
+--
+-- Compatible with: FreeSQLDatabase.com, db4free.net
 
 -- ============================================
 -- 1) Safe cleanup for orphan product_embeddings rows
@@ -75,6 +80,8 @@ SET @sql := IF(@ix=0,
 PREPARE s FROM @sql; EXECUTE s; DEALLOCATE PREPARE s;
 
 -- 2.5) CHECK constraints (MySQL 8.0+)
+-- ⚠️ Free hosting có thể chưa hỗ trợ CHECK constraints
+-- Nếu báo lỗi, bỏ qua phần này
 SET @chk_qty := (
   SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS
   WHERE CONSTRAINT_SCHEMA=DATABASE() AND TABLE_NAME='order_details' AND CONSTRAINT_NAME='chk_od_qty'

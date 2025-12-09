@@ -57,9 +57,35 @@ export const chat = async (req, res) => {
     // Speed-aware params
     const topK = Math.max(1, fast ? Math.min(inputTopK, 3) : inputTopK);
 
-    // Check if message is about products (skip for greetings and small talk)
+    // Check if message is about products (skip for greetings, small talk, ORDER queries, POLICY queries)
     const isProductQuery = (msg) => {
       const lower = msg.toLowerCase();
+      
+      // HIGHEST PRIORITY: Context-specific questions about products = NOT a new product search
+      const contextSpecificPatterns = [
+        // Order confirmation patterns
+        /\b(lấy|lay|đặt|dat|mua)\s+(tôi|cho\s+tôi|cho\s*tôi)?\s*(áo|ao|sản phẩm|san pham|cái|sp)?\s*(này|nay|đó|do|kia)\b/i,
+        /\bok\s+(lấy|lay|đặt|dat|mua)/i,
+        /\b(lấy|lay|đặt|dat|mua)\s+luôn/i,
+        
+        // Size selection by body measurements (height-weight)
+        /\b\d+m?\d*\s*-?\s*\d+kg/i,
+        
+        // Size and quantity input (size L đi, 1 cái, 2 chiếc...)
+        /\bsize\s+[smlxSMLX0-9]+\s+(đi|di|thôi|thoi|nha|nhé|nhe)\b/i,
+        /\b\d+\s+(cái|cai|chiếc|chiec|áo|ao|đôi|doi)\b/i,
+        
+        // Product detail inquiries (material, washing, features) about "this product" / "the shirt"
+        // Pattern: (áo|sản phẩm|cái) + (này|đó) + question OR question about (áo|sp) with context words
+        /\b(áo|ao|sản phẩm|san pham|cái|cai|đôi|doi)\s*(này|nay|đó|do|kia)?\s+(chất liệu|chat lieu|có|co|giặt|giat|bền|ben|thế nào|the nao|j\s+vậy|vay)/i,
+        /\b(chất liệu|chat lieu|giặt máy|giat may|giặt|giat|vải|vai|material)\s+(gì|gi|j|nào|nao|như thế nào|nhu the nao|thế nào|the nao)/i,
+        /\b(có|co)\s+(giặt máy|giat may|giặt|giat|machine wash|wash)\s+(được|duoc|đc|dc|không|ko|ko)\b/i
+      ];
+      
+      if (contextSpecificPatterns.some(pattern => pattern.test(lower))) {
+        console.log(`[AI] Detected context-specific question (not product search): "${msg}"`);
+        return false;
+      }
       
       // Greetings and small talk - NO product search (check FIRST, highest priority)
       if (GREETING_KEYWORDS.some(g => lower.includes(g)) && msg.length < 25) {
@@ -71,20 +97,50 @@ export const chat = async (req, res) => {
         return false;
       }
       
-      // Off-topic keywords - NO product search
-      if (OFF_TOPIC_KEYWORDS.some(k => lower.includes(k))) {
-        console.log(`[AI] Detected off-topic keyword in query: "${msg}"`);
+      // ❌ KHÔNG search products nếu hỏi về đơn hàng
+      const orderKeywords = ['đơn hàng', 'don hang', 'đơn của tôi', 'đơn', 'order', 'giao hàng', 'giao hang', 'giao chưa', 'ship'];
+      if (orderKeywords.some(k => lower.includes(k))) {
+        console.log(`[AI] Detected order inquiry - NO product search: "${msg}"`);
         return false;
       }
       
-      // Product-related keywords
-      const allProductKeywords = [
-        ...PRODUCT_KEYWORDS.categories,
-        ...PRODUCT_KEYWORDS.shopping,
-        ...PRODUCT_KEYWORDS.brands
+      // ❌ KHÔNG search nếu hỏi về chính sách/hỗ trợ
+      const policyKeywords = [
+        'bao lâu', 'bao lau', 'khi nào', 'khi nao', 'mất bao lâu', 'mat bao lau',
+        'mấy ngày', 'may ngay', 'bao nhiêu ngày', 'bao nhieu ngay',
+        'phí ship', 'phi ship', 'phí giao hàng', 'phi giao hang',
+        'giao hàng tới', 'giao hang toi', 'ship tới', 'ship toi',
+        'thanh toán', 'thanh toan', 'payment', 'cod',
+        'chính sách', 'chinh sach', 'policy', 'đổi trả', 'doi tra', 'return',
+        'bảo hành', 'bao hanh', 'warranty', 'bảo quản', 'bao quan'
       ];
       
-      return allProductKeywords.some(k => lower.includes(k)) || msg.length > 30;
+      // Special detection for delivery time questions
+      const deliveryTimePatterns = [
+        /\b(tầm|tam|khoảng|khoang|mất|mat)\s*(bao lâu|bao lau|mấy ngày|may ngay|bao nhiêu ngày|bao nhieu ngay)/i,
+        /\b(hàng|hang|đơn|don)\s+(giao|ship)\s+(tới|toi|đến|den)/i,
+        /\bgiao\s+(trong|mất|mat)\s+(bao lâu|bao lau|mấy ngày|may ngay)/i
+      ];
+      
+      if (policyKeywords.some(k => lower.includes(k)) || deliveryTimePatterns.some(p => p.test(lower))) {
+        console.log(`[AI] Detected policy/service inquiry - NO product search: "${msg}"`);
+        return false;
+      }
+      
+      // Off-topic keywords - NO product search
+      if (OFF_TOPIC_KEYWORDS.some(k => lower.includes(k))) {
+        console.log(`[AI] Detected off-topic keyword - NO product search: "${msg}"`);
+        return false;
+      }
+      
+      // ✅ Search khi hỏi về sản phẩm
+      const productKeywords = [
+        'áo', 'ao', 'quần', 'quan', 'giày', 'giay', 'găng', 'gang', 'bóng', 'bong', 
+        'tất', 'tat', 'phụ kiện', 'phu kien',
+        'mua', 'đặt', 'dat', 'tìm', 'tim', 'xem', 'có', 'co', 'giá', 'gia', 'size'
+      ];
+      
+      return productKeywords.some(k => lower.includes(k));
     };
 
     // OPTIMIZATION 1: Run independent operations in parallel
@@ -92,7 +148,7 @@ export const chat = async (req, res) => {
       // Ensure product embeddings cache (non-blocking, very small batch to avoid cold start delay)
       ensureEmbeddingsForProducts(fast ? 5 : 10).catch(e => console.warn('[AI] Embedding cache update failed:', e.message)),
       // Memory: recent chat history (more messages to remember size/quantity choices)
-      getRecentMessages(sid, fast ? 10 : 15),
+      getRecentMessages(sid, fast ? 15 : 20),
       // Long-term memory (skip if anonymous user to save time)
       userId ? recallLongTermMemory(userId, message, 2) : Promise.resolve([]),
       // Get current order tracking (if any)
@@ -102,11 +158,11 @@ export const chat = async (req, res) => {
     // Check if we're in order creation flow (has order tracking)
     const isOrderFlow = orderTracking !== null;
     
-    // Check if message is about products (skip for greetings, small talk, and ORDER FLOW)
+    // OPTIMIZATION: Only search products when needed (NOT in order flow, NOT for order/policy queries)
     const shouldSearchProducts = !isOrderFlow && isProductQuery(message);
     console.log(`[AI] Query: "${message}" -> shouldSearchProducts: ${shouldSearchProducts}, isOrderFlow: ${isOrderFlow}`);
     
-    // RAG: semantic retrieve relevant products ONLY if needed (skip in order flow)
+    // RAG: semantic retrieve relevant products ONLY if needed
     const relevantProducts = shouldSearchProducts ? await semanticSearchProducts(message, topK) : [];
     
     console.log(`[AI] Initial RAG search returned ${relevantProducts.length} products`);
@@ -297,34 +353,46 @@ export const chat = async (req, res) => {
             tool_name: 'product_mapping'
           }).catch(e => console.warn('[AI] Failed to save product mapping:', e.message));
           
-          // CRITICAL: Add order tracking message for AI to use when creating order
-          // Delete old tracking messages first to avoid confusion
-          await deleteOrderTracking(sid);
+          // CRITICAL: Only create order tracking if this is an ORDER FLOW (customer wants to BUY)
+          // Detect order intent from the original user message
+          const orderIntentKeywords = ['mua', 'đặt', 'dat', 'lấy', 'lay', 'order'];
+          const hasOrderIntent = orderIntentKeywords.some(keyword => 
+            message.toLowerCase().includes(keyword)
+          );
           
-          if (dynamicProducts.length === 1) {
-            // Single product tracking
-            const product = dynamicProducts[0];
-            const orderTrackingNote = `📦 Đang xử lý đơn: product_id=${product.id}, product_name=${product.name}`;
-            await saveMessage({ 
-              session_id: sid, 
-              user_id: userId, 
-              role: 'system', 
-              content: orderTrackingNote,
-              tool_name: 'order_tracking'
-            }).catch(e => console.warn('[AI] Failed to save order tracking:', e.message));
-            console.log(`[AI] Order tracking started: product_id=${product.id}`);
-          } else if (dynamicProducts.length > 1) {
-            // Multiple products tracking
-            const productList = dynamicProducts.map(p => `product_id=${p.id} (${p.name})`).join(', ');
-            const orderTrackingNote = `📦 Đang xử lý đơn NHIỀU SẢN PHẨM: [${productList}]`;
-            await saveMessage({ 
-              session_id: sid, 
-              user_id: userId, 
-              role: 'system', 
-              content: orderTrackingNote,
-              tool_name: 'order_tracking'
-            }).catch(e => console.warn('[AI] Failed to save order tracking:', e.message));
-            console.log(`[AI] Order tracking started: ${dynamicProducts.length} products`);
+          // ONLY create tracking if customer wants to buy (has order intent)
+          if (hasOrderIntent) {
+            console.log(`[AI] Order intent detected - creating tracking message`);
+            // Delete old tracking messages first to avoid confusion
+            await deleteOrderTracking(sid);
+            
+            if (dynamicProducts.length === 1) {
+              // Single product tracking
+              const product = dynamicProducts[0];
+              const orderTrackingNote = `📦 Đang xử lý đơn: product_id=${product.id}, product_name=${product.name}`;
+              await saveMessage({ 
+                session_id: sid, 
+                user_id: userId, 
+                role: 'system', 
+                content: orderTrackingNote,
+                tool_name: 'order_tracking'
+              }).catch(e => console.warn('[AI] Failed to save order tracking:', e.message));
+              console.log(`[AI] Order tracking started: product_id=${product.id}`);
+            } else if (dynamicProducts.length > 1) {
+              // Multiple products tracking
+              const productList = dynamicProducts.map(p => `product_id=${p.id} (${p.name})`).join(', ');
+              const orderTrackingNote = `📦 Đang xử lý đơn NHIỀU SẢN PHẨM: [${productList}]`;
+              await saveMessage({ 
+                session_id: sid, 
+                user_id: userId, 
+                role: 'system', 
+                content: orderTrackingNote,
+                tool_name: 'order_tracking'
+              }).catch(e => console.warn('[AI] Failed to save order tracking:', e.message));
+              console.log(`[AI] Order tracking started: ${dynamicProducts.length} products`);
+            }
+          } else {
+            console.log(`[AI] No order intent detected - SKIPPING tracking message (customer is just asking about products)`);
           }
         }
         
@@ -344,14 +412,32 @@ export const chat = async (req, res) => {
       || (result?.response?.candidates?.[0]?.content?.parts?.map(p=>p.text).join('\n') || '');
 
     // Merge products from initial RAG search and dynamic tool calls
-    // IMPORTANT: If tool search returned results, ONLY use tool results (more precise)
-    // Don't merge with RAG results to avoid showing irrelevant products
-    // CRITICAL: During order flow (choosing size/quantity/address), don't show products
+    // ⚠️ QUAN TRỌNG: Nếu có tool results → CHỈ dùng tool results, BỎ QUA RAG
+    // ⚠️ Trong order flow (chọn size/số lượng/địa chỉ) → KHÔNG hiển thị sản phẩm
     let allProducts;
+    
+    // Check if any tool returned successful results (found/success = true)
+    const hasSuccessfulToolResults = toolResponses.some(tr => {
+      const result = tr.result;
+      return result && (result.found === true || result.success === true);
+    });
+    
     if (isOrderFlow) {
       console.log(`[AI] In order flow - hiding all products from response`);
       allProducts = [];
+    } else if (hasSuccessfulToolResults) {
+      // Tool returned successful results → Clear RAG products, only use tool products
+      console.log(`[AI] Tool returned successful results - clearing RAG context`);
+      if (dynamicProducts.length > 0) {
+        console.log(`[AI] Using ${dynamicProducts.length} tool products (ignoring ${relevantProducts.length} RAG results)`);
+        allProducts = dynamicProducts;
+      } else {
+        // Tool succeeded but no products (e.g., get_orders_by_date found orders)
+        console.log(`[AI] Tool succeeded with no products - clearing all product context`);
+        allProducts = [];
+      }
     } else if (dynamicProducts.length > 0) {
+      // Tool returned products but not successful (e.g., found: false with suggestions)
       console.log(`[AI] Tool search returned ${dynamicProducts.length} products - using ONLY tool results (ignoring ${relevantProducts.length} RAG results)`);
       allProducts = dynamicProducts;
     } else {
@@ -364,6 +450,16 @@ export const chat = async (req, res) => {
     const sanitizeResponse = (raw, showImageNotice) => {
       if (!raw) return '';
       let out = String(raw);
+      
+      // 0) CRITICAL: Remove ALL order tracking messages (should NEVER be shown to user)
+      // Pattern 1: "📦 Order tracking started: product_id=XX, product_name=..."
+      out = out.replace(/📦\s*Order tracking started:.*$/gim, '');
+      // Pattern 2: "📦 Đang xử lý đơn: product_id=XX..."
+      out = out.replace(/📦\s*Đang xử lý đơn:.*$/gim, '');
+      // Pattern 3: "📦 Đang xử lý NHIỀU SẢN PHẨM:..."
+      out = out.replace(/📦\s*Đang xử lý.*SẢN PHẨM:.*$/gim, '');
+      // Pattern 4: Any line starting with [System], [Hệ thống], [Tool, etc.
+      out = out.replace(/^\[(?:System|Hệ thống|Tool|AI|DEBUG).*$/gim, '');
       
       // 1) Remove product codes like "(mã #64)" or "mã #64"
       out = out.replace(/\s*\(mã\s*#\d+\)/gi, '');

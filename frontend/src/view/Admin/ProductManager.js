@@ -12,6 +12,18 @@ import {
   getAllCategories,
 } from "../../api.js";
 
+// Resolve image URL for products
+const resolveImage = (img) => {
+  if (!img) return '/images/placeholder.png';
+  const trimmed = String(img).trim();
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
+  if (trimmed.startsWith('/')) {
+    const parts = trimmed.split('/');
+    return parts.map((part, idx) => idx === 0 ? part : encodeURIComponent(part)).join('/');
+  }
+  return `/images/${encodeURIComponent(trimmed)}`;
+};
+
 export default function ProductManager() {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -452,7 +464,7 @@ function ProductCard({
     <div className="bg-white rounded-2xl shadow-md overflow-hidden flex flex-col w-80 flex-shrink-0">
       <div className="h-48 overflow-hidden">
         <img
-          src={product.image}
+          src={resolveImage(product.image)}
           alt={product.name}
           className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
         />
