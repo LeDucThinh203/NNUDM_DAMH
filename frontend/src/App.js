@@ -5,7 +5,6 @@ import Session from "./Session/session";
 // Components
 import Footer from "./view/Footer/Footer";
 import Header from "./view/Header/Header";
-import ChatWidget from "./view/Chat/ChatWidget";
 
 // Product
 import ProductList from "./view/Product/ProductList";
@@ -210,9 +209,6 @@ function AppContent() {
 
       {/* Footer */}
       <Footer />
-      
-      {/* Chat Widget AI - Available for all users */}
-      <ChatWidget />
     </div>
   );
 }

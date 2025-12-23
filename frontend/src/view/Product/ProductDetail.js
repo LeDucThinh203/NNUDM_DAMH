@@ -16,8 +16,9 @@ import {
 
 // Resolve image URL for products
 const resolveImage = (img) => {
-  if (!img) return '/images/placeholder.png';
+  if (!img) return '/images/placeholder.svg';
   const trimmed = String(img).trim();
+  if (trimmed === '' || trimmed === 'null' || trimmed === 'undefined') return '/images/placeholder.svg';
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
   if (trimmed.startsWith('/')) {
     const parts = trimmed.split('/');

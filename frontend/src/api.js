@@ -1,9 +1,33 @@
 // ================= Base =================
 import Session from './Session/session';
 
-// API Base URL - sử dụng biến môi trường hoặc empty string để dùng proxy
-// Khi REACT_APP_API_URL trống, requests sẽ đi qua proxy trong package.json
-const API_BASE_URL = process.env.REACT_APP_API_URL || "";
+// API Base URL - Tự động lấy từ backend config
+let API_BASE_URL = "";
+let isConfigLoaded = false;
+
+// Lấy config từ backend để biết URL đúng (localhost hay ngrok)
+const fetchBackendConfig = async () => {
+  if (isConfigLoaded) return;
+  
+  try {
+    const response = await fetch(`http://localhost:3006/api/config`);
+    if (response.ok) {
+      const config = await response.json();
+      API_BASE_URL = config.apiUrl;
+      isConfigLoaded = true;
+      console.log(`✅ Backend Config Loaded:`, config);
+      console.log(`🔗 API URL: ${API_BASE_URL}`);
+      console.log(`🌐 Mode: ${config.useNgrok ? 'NGROK' : 'LOCALHOST'}`);
+    }
+  } catch (error) {
+    console.warn('⚠️ Không thể kết nối backend config, sử dụng proxy');
+    API_BASE_URL = ""; // Empty = dùng proxy trong package.json
+    isConfigLoaded = true;
+  }
+};
+
+// Tự động gọi khi app khởi động
+fetchBackendConfig();
 
 const safeJson = async (res) => {
   try {

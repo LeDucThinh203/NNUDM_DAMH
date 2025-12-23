@@ -7,7 +7,6 @@ import swaggerUi from 'swagger-ui-express';
 import swaggerJsdoc from 'swagger-jsdoc';
 
 import uiRoutes from './routes/ui.js'; // gom tất cả route
-import { ensureAiSchema } from './services/ai/schema.js';
 
 dotenv.config();
 const app = express();
@@ -76,31 +75,19 @@ app.get('/health', (req, res) => {
   });
 });
 
+// --- Config endpoint để frontend lấy API URL động ---
+app.get('/api/config', (req, res) => {
+  res.json({ 
+    apiUrl: SERVER_URL,
+    useNgrok: process.env.USE_NGROK === 'true',
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
 // --- Start server ---
-app.listen(PORT, '0.0.0.0', async () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running at http://localhost:${PORT}`);
   console.log(`🔗 Swagger UI: ${SERVER_URL}/swagger`);
-
-
-  
-  // Ensure AI related tables exist
-  await ensureAiSchema().catch((e) => console.error('AI schema init error:', e));
-  
-  // Auto-generate embeddings for products without cache (background task)
-  // Limit to small batch to avoid blocking server startup
-  const { ensureEmbeddingsForProducts } = await import('./services/ai/vectorStore.js');
-  const STARTUP_BATCH_SIZE = parseInt(process.env.EMBEDDING_STARTUP_BATCH || '20');
-  
-  ensureEmbeddingsForProducts(STARTUP_BATCH_SIZE)
-    .then(count => {
-      if (count > 0) {
-        console.log(`✅ Generated ${count} product embeddings on startup`);
-        console.log(`💡 For large product catalogs, run: node scripts/generate_embeddings.js`);
-      } else {
-        console.log(`✅ All product embeddings already cached`);
-      }
-    })
-    .catch(e => console.warn('⚠️  Embedding generation warning:', e.message));
 });
 
 

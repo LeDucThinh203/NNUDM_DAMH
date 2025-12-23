@@ -221,7 +221,7 @@ export default function OrderManager() {
 
   // Hàm xử lý đường dẫn hình ảnh
   const resolveImage = (img) => {
-    if (!img) return '/images/placeholder.png';
+    if (!img) return '/images/placeholder.svg';
     const trimmed = String(img).trim();
     if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
     if (trimmed.startsWith('/')) return encodeURI(trimmed);
@@ -977,7 +977,7 @@ export default function OrderManager() {
                             className="w-full h-full object-cover"
                             onError={(e) => {
                               e.target.onerror = null;
-                              e.target.src = '/images/placeholder.png';
+                              e.target.src = '/images/placeholder.svg';
                             }}
                           />
                         </div>

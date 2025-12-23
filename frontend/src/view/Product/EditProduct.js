@@ -4,7 +4,7 @@ import { useParams, useNavigate, useLocation } from "react-router-dom";
 
 // Resolve image URL for products
 const resolveImage = (img) => {
-  if (!img) return '/images/placeholder.png';
+  if (!img) return '/images/placeholder.svg';
   const trimmed = String(img).trim();
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
   if (trimmed.startsWith('/')) {
