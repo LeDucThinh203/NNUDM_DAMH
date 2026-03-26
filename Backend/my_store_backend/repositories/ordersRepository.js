@@ -130,9 +130,11 @@ export const updateOrderStatus = async (id, data) => {
   updateValues.push(id); // Thêm id vào cuối cho WHERE clause
   
   const query = `UPDATE orders SET ${updateFields.join(', ')} WHERE id = ?`;
-  await db.query(query, updateValues);
+  const [result] = await db.query(query, updateValues);
+  return result.affectedRows;
 };
 
 export const deleteOrder = async (id) => {
-  await db.query('DELETE FROM orders WHERE id=?', [id]);
+  const [result] = await db.query('DELETE FROM orders WHERE id=?', [id]);
+  return result.affectedRows;
 };

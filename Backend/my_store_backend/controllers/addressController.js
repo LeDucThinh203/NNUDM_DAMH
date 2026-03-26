@@ -1,46 +1,51 @@
 import * as addressRepo from '../repositories/addressRepository.js';
+import { created, notFound, ok, serverError } from '../utils/response.js';
 
 export const getAllAddresses = async (req, res) => {
   try {
     const addresses = await addressRepo.getAllAddresses();
-    res.json(addresses);
+    return ok(res, addresses);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return serverError(res, err);
   }
 };
 
 export const getAddressById = async (req, res) => {
   try {
     const address = await addressRepo.getAddressById(req.params.id);
-    res.json(address);
+    if (!address) return notFound(res, 'dia chi khong ton tai');
+    return ok(res, address);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return serverError(res, err);
   }
 };
 
 export const createAddress = async (req, res) => {
   try {
     const id = await addressRepo.createAddress(req.body);
-    res.status(201).json({ id });
+    return created(res, { id });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return serverError(res, err);
   }
 };
 
 export const updateAddress = async (req, res) => {
   try {
-    await addressRepo.updateAddress(req.params.id, req.body);
-    res.json({ message: 'Updated successfully' });
+    const affectedRows = await addressRepo.updateAddress(req.params.id, req.body);
+    if (affectedRows === 0) return notFound(res, 'dia chi khong ton tai');
+    const updated = await addressRepo.getAddressById(req.params.id);
+    return ok(res, updated);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return serverError(res, err);
   }
 };
 
 export const deleteAddress = async (req, res) => {
   try {
-    await addressRepo.deleteAddress(req.params.id);
-    res.json({ message: 'Deleted successfully' });
+    const affectedRows = await addressRepo.deleteAddress(req.params.id);
+    if (affectedRows === 0) return notFound(res, 'dia chi khong ton tai');
+    return ok(res, { message: 'xoa thanh cong' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return serverError(res, err);
   }
 };

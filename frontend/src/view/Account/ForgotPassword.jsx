@@ -18,7 +18,10 @@ export default function ForgotPassword() {
 
     try {
       const res = await api.forgotPassword(email);
-      setMessage(res.message || "Email khôi phục đã được gửi! Vui lòng kiểm tra hộp thư.");
+      setMessage(
+        res.message ||
+          "Nếu email tồn tại trong hệ thống, hướng dẫn khôi phục đã được gửi. Vui lòng kiểm tra cả Spam/Junk."
+      );
     } catch (err) {
       setError(err.message || "Đã xảy ra lỗi, vui lòng thử lại.");
     } finally {

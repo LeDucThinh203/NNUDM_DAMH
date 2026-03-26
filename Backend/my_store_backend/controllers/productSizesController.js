@@ -1,46 +1,51 @@
 import * as productSizesRepo from '../repositories/productSizesRepository.js';
+import { created, notFound, ok, serverError } from '../utils/response.js';
 
 export const getAllProductSizes = async (req, res) => {
   try {
     const productSizes = await productSizesRepo.getAllProductSizes();
-    res.json(productSizes);
+    return ok(res, productSizes);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return serverError(res, err);
   }
 };
 
 export const getProductSizeById = async (req, res) => {
   try {
     const productSize = await productSizesRepo.getProductSizeById(req.params.id);
-    res.json(productSize);
+    if (!productSize) return notFound(res, 'product_size khong ton tai');
+    return ok(res, productSize);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return serverError(res, err);
   }
 };
 
 export const createProductSize = async (req, res) => {
   try {
     const id = await productSizesRepo.createProductSize(req.body);
-    res.status(201).json({ id });
+    return created(res, { id });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return serverError(res, err);
   }
 };
 
 export const updateProductSize = async (req, res) => {
   try {
-    await productSizesRepo.updateProductSize(req.params.id, req.body);
-    res.json({ message: 'Updated successfully' });
+    const affectedRows = await productSizesRepo.updateProductSize(req.params.id, req.body);
+    if (affectedRows === 0) return notFound(res, 'product_size khong ton tai');
+    const updated = await productSizesRepo.getProductSizeById(req.params.id);
+    return ok(res, updated);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return serverError(res, err);
   }
 };
 
 export const deleteProductSize = async (req, res) => {
   try {
-    await productSizesRepo.deleteProductSize(req.params.id);
-    res.json({ message: 'Deleted successfully' });
+    const affectedRows = await productSizesRepo.deleteProductSize(req.params.id);
+    if (affectedRows === 0) return notFound(res, 'product_size khong ton tai');
+    return ok(res, { message: 'xoa thanh cong' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return serverError(res, err);
   }
 };

@@ -3,17 +3,27 @@ import bcrypt from 'bcryptjs';
 
 /** ================= Account ================= */
 export const getAllAccounts = async () => {
-  const [rows] = await db.query('SELECT * FROM account');
+  const [rows] = await db.query(
+    'SELECT id, email, username, role, created_at, updated_at FROM account'
+  );
   return rows;
 };
 
 export const getAccountById = async (id) => {
-  const [rows] = await db.query('SELECT * FROM account WHERE id=?', [id]);
+  const [rows] = await db.query(
+    'SELECT id, email, username, role, created_at, updated_at FROM account WHERE id=?',
+    [id]
+  );
   return rows[0] || null;
 };
 
 export const getAccountByEmail = async (email) => {
   const [rows] = await db.query('SELECT * FROM account WHERE email=?', [email]);
+  return rows[0] || null;
+};
+
+export const getAccountByUsername = async (username) => {
+  const [rows] = await db.query('SELECT * FROM account WHERE username=?', [username]);
   return rows[0] || null;
 };
 
@@ -32,14 +42,17 @@ export const updateAccount = async (id, { email, username, password, role }) => 
   const account = rows[0];
   const newPassword = password ? await bcrypt.hash(password, 10) : account.password;
 
-  await db.query(
+  const [result] = await db.query(
     'UPDATE account SET email=?, username=?, password=?, role=?, updated_at=NOW() WHERE id=?',
     [email || account.email, username || account.username, newPassword, role || account.role, id]
   );
+
+  return result.affectedRows;
 };
 
 export const deleteAccount = async (id) => {
-  await db.query('DELETE FROM account WHERE id=?', [id]);
+  const [result] = await db.query('DELETE FROM account WHERE id=?', [id]);
+  return result.affectedRows;
 };
 
 /** ================= Reset password ================= */

@@ -35,15 +35,18 @@ export const updateProductSize = async (id, data) => {
     values.push(data.stock);
   }
   
-  if (fields.length === 0) return;
+  if (fields.length === 0) return 0;
   
   values.push(id);
-  await db.query(
+  const [result] = await db.query(
     `UPDATE product_sizes SET ${fields.join(', ')} WHERE id=?`,
     values
   );
+
+  return result.affectedRows;
 };
 
 export const deleteProductSize = async (id) => {
-  await db.query('DELETE FROM product_sizes WHERE id=?', [id]);
+  const [result] = await db.query('DELETE FROM product_sizes WHERE id=?', [id]);
+  return result.affectedRows;
 };

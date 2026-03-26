@@ -23,12 +23,15 @@ export const createAddress = async (addressData) => {
 
 export const updateAddress = async (id, addressData) => {
   const { account_id, name, phone, provinceName, districtName, wardName, address_detail } = addressData;
-  await db.query(
+  const [result] = await db.query(
     `UPDATE address SET account_id=?, name=?, phone=?, provinceName=?, districtName=?, wardName=?, address_detail=? WHERE id=?`,
     [account_id, name, phone, provinceName, districtName, wardName, address_detail, id]
   );
+
+  return result.affectedRows;
 };
 
 export const deleteAddress = async (id) => {
-  await db.query('DELETE FROM address WHERE id=?', [id]);
+  const [result] = await db.query('DELETE FROM address WHERE id=?', [id]);
+  return result.affectedRows;
 };

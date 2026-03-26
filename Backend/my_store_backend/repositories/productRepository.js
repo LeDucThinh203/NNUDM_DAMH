@@ -47,15 +47,18 @@ export const updateProduct = async (id, data) => {
     values.push(data.discount_percent);
   }
   
-  if (fields.length === 0) return;
+  if (fields.length === 0) return 0;
   
   values.push(id);
-  await db.query(
+  const [result] = await db.query(
     `UPDATE product SET ${fields.join(', ')} WHERE id=?`,
     values
   );
+
+  return result.affectedRows;
 };
 
 export const deleteProduct = async (id) => {
-  await db.query('DELETE FROM product WHERE id=?', [id]);
+  const [result] = await db.query('DELETE FROM product WHERE id=?', [id]);
+  return result.affectedRows;
 };

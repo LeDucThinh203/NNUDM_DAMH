@@ -1,46 +1,51 @@
 import * as ratingRepo from '../repositories/ratingRepository.js';
+import { created, notFound, ok, serverError } from '../utils/response.js';
 
 export const getAllRatings = async (req, res) => {
   try {
     const ratings = await ratingRepo.getAllRatings();
-    res.json(ratings);
+    return ok(res, ratings);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return serverError(res, err);
   }
 };
 
 export const getRatingById = async (req, res) => {
   try {
     const rating = await ratingRepo.getRatingById(req.params.id);
-    res.json(rating);
+    if (!rating) return notFound(res, 'danh gia khong ton tai');
+    return ok(res, rating);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return serverError(res, err);
   }
 };
 
 export const createRating = async (req, res) => {
   try {
     const id = await ratingRepo.createRating(req.body);
-    res.status(201).json({ id });
+    return created(res, { id });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return serverError(res, err);
   }
 };
 
 export const updateRating = async (req, res) => {
   try {
-    await ratingRepo.updateRating(req.params.id, req.body);
-    res.json({ message: 'Updated successfully' });
+    const affectedRows = await ratingRepo.updateRating(req.params.id, req.body);
+    if (affectedRows === 0) return notFound(res, 'danh gia khong ton tai');
+    const updated = await ratingRepo.getRatingById(req.params.id);
+    return ok(res, updated);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return serverError(res, err);
   }
 };
 
 export const deleteRating = async (req, res) => {
   try {
-    await ratingRepo.deleteRating(req.params.id);
-    res.json({ message: 'Deleted successfully' });
+    const affectedRows = await ratingRepo.deleteRating(req.params.id);
+    if (affectedRows === 0) return notFound(res, 'danh gia khong ton tai');
+    return ok(res, { message: 'xoa thanh cong' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return serverError(res, err);
   }
 };

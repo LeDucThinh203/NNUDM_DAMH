@@ -1,6 +1,11 @@
 import express from 'express';
 import * as accountController from '../controllers/accountController.js';
-import { authenticate, requireAdmin, requireSelfOrAdmin } from '../middleware/auth.js';
+import { checkLogin, CheckPermission, requireSelfOrAdmin } from '../middleware/auth.js';
+import {
+	changePasswordValidator,
+	loginValidator,
+	registerValidator
+} from '../utils/validator.js';
 
 const router = express.Router();
 
@@ -27,7 +32,7 @@ const router = express.Router();
  *       403:
  *         description: Không có quyền truy cập
  */
-router.get('/', authenticate, requireAdmin, accountController.getAllAccounts);
+router.get('/', checkLogin, CheckPermission('admin'), accountController.getAllAccounts);
 
 /**
  * @swagger
@@ -51,7 +56,7 @@ router.get('/', authenticate, requireAdmin, accountController.getAllAccounts);
  *       403:
  *         description: Không có quyền truy cập
  */
-router.get('/:id', authenticate, requireSelfOrAdmin, accountController.getAccountById);
+router.get('/me', checkLogin, accountController.me);
 
 /**
  * @swagger
@@ -78,7 +83,7 @@ router.get('/:id', authenticate, requireSelfOrAdmin, accountController.getAccoun
  *       201:
  *         description: Tạo tài khoản thành công
  */
-router.post('/register', accountController.register);
+router.post('/register', registerValidator, accountController.register);
 
 /**
  * @swagger
@@ -103,7 +108,11 @@ router.post('/register', accountController.register);
  *       400:
  *         description: Email hoặc mật khẩu không đúng
  */
-router.post('/login', accountController.login);
+router.post('/login', loginValidator, accountController.login);
+
+router.post('/change-password', checkLogin, changePasswordValidator, accountController.changePassword);
+
+router.post('/logout', checkLogin, accountController.logout);
 
 /**
  * @swagger
@@ -130,7 +139,9 @@ router.post('/login', accountController.login);
  *       201:
  *         description: Tạo tài khoản thành công
  */
-router.post('/', accountController.register);
+router.post('/', checkLogin, CheckPermission('admin'), registerValidator, accountController.createAccount);
+
+router.get('/:id', checkLogin, requireSelfOrAdmin, accountController.getAccountById);
 
 /**
  * @swagger
@@ -169,7 +180,7 @@ router.post('/', accountController.register);
  *       403:
  *         description: Không có quyền truy cập
  */
-router.put('/:id', authenticate, requireSelfOrAdmin, accountController.updateAccount);
+router.put('/:id', checkLogin, requireSelfOrAdmin, accountController.updateAccount);
 
 /**
  * @swagger
@@ -193,7 +204,7 @@ router.put('/:id', authenticate, requireSelfOrAdmin, accountController.updateAcc
  *       403:
  *         description: Không có quyền truy cập
  */
-router.delete('/:id', authenticate, requireAdmin, accountController.deleteAccount);
+router.delete('/:id', checkLogin, CheckPermission('admin'), accountController.deleteAccount);
 
 /**
  * @swagger

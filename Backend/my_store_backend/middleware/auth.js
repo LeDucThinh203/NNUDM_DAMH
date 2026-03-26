@@ -21,18 +21,26 @@ export const verifyToken = (token) => {
   }
 };
 
+const getTokenFromRequest = (req) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return null;
+  }
+
+  return authHeader.substring(7);
+};
+
 /**
  * Middleware xác thực - yêu cầu đăng nhập
  */
 export const authenticate = (req, res, next) => {
   try {
-    const authHeader = req.headers.authorization;
-    
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    const token = getTokenFromRequest(req);
+
+    if (!token) {
       return res.status(401).json({ error: 'Không tìm thấy token xác thực' });
     }
 
-    const token = authHeader.substring(7); // Bỏ "Bearer "
     const decoded = verifyToken(token);
 
     if (!decoded) {
@@ -60,6 +68,24 @@ export const requireAdmin = (req, res, next) => {
   }
 
   next();
+};
+
+// Compat với phong cách NNPTUD-C6: CheckPermission('admin')
+export const checkPermission = (...requiredRoles) => {
+  const normalized = requiredRoles.map((role) => String(role).toLowerCase());
+
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Chưa xác thực' });
+    }
+
+    const currentRole = String(req.user.role || '').toLowerCase();
+    if (!normalized.includes(currentRole)) {
+      return res.status(403).json({ error: 'Không có quyền truy cập' });
+    }
+
+    next();
+  };
 };
 
 /**
@@ -99,12 +125,10 @@ export const requireSelfOrAdmin = (req, res, next) => {
  */
 export const optionalAuth = (req, res, next) => {
   try {
-    const authHeader = req.headers.authorization;
-    
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.substring(7);
+    const token = getTokenFromRequest(req);
+    if (token) {
       const decoded = verifyToken(token);
-      
+
       if (decoded) {
         req.user = decoded;
       }
@@ -116,11 +140,18 @@ export const optionalAuth = (req, res, next) => {
   }
 };
 
+// Alias theo NNPTUD-C6
+export const checkLogin = authenticate;
+export const CheckPermission = checkPermission;
+
 export default {
   generateToken,
   verifyToken,
   authenticate,
+  checkLogin,
   requireAdmin,
+  checkPermission,
+  CheckPermission,
   requireUser,
   requireSelfOrAdmin,
   optionalAuth

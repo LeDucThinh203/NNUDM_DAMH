@@ -1,46 +1,51 @@
 import * as orderDetailsRepo from '../repositories/orderDetailsRepository.js';
+import { created, notFound, ok, serverError } from '../utils/response.js';
 
 export const getAllOrderDetails = async (req, res) => {
   try {
     const orderDetails = await orderDetailsRepo.getAllOrderDetails();
-    res.json(orderDetails);
+    return ok(res, orderDetails);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return serverError(res, err);
   }
 };
 
 export const getOrderDetailById = async (req, res) => {
   try {
     const orderDetail = await orderDetailsRepo.getOrderDetailById(req.params.id);
-    res.json(orderDetail);
+    if (!orderDetail) return notFound(res, 'chi tiet don hang khong ton tai');
+    return ok(res, orderDetail);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return serverError(res, err);
   }
 };
 
 export const createOrderDetail = async (req, res) => {
   try {
     const id = await orderDetailsRepo.createOrderDetail(req.body);
-    res.status(201).json({ id });
+    return created(res, { id });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return serverError(res, err);
   }
 };
 
 export const updateOrderDetail = async (req, res) => {
   try {
-    await orderDetailsRepo.updateOrderDetail(req.params.id, req.body);
-    res.json({ message: 'Updated successfully' });
+    const affectedRows = await orderDetailsRepo.updateOrderDetail(req.params.id, req.body);
+    if (affectedRows === 0) return notFound(res, 'chi tiet don hang khong ton tai');
+    const updated = await orderDetailsRepo.getOrderDetailById(req.params.id);
+    return ok(res, updated);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return serverError(res, err);
   }
 };
 
 export const deleteOrderDetail = async (req, res) => {
   try {
-    await orderDetailsRepo.deleteOrderDetail(req.params.id);
-    res.json({ message: 'Deleted successfully' });
+    const affectedRows = await orderDetailsRepo.deleteOrderDetail(req.params.id);
+    if (affectedRows === 0) return notFound(res, 'chi tiet don hang khong ton tai');
+    return ok(res, { message: 'xoa thanh cong' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return serverError(res, err);
   }
 };

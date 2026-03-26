@@ -19,12 +19,15 @@ export const createCategory = async ({ name, description }) => {
 };
 
 export const updateCategory = async (id, { name, description }) => {
-  await db.query(
+  const [result] = await db.query(
     'UPDATE category SET name=?, description=? WHERE id=?',
     [name, description, id]
   );
+
+  return result.affectedRows;
 };
 
 export const deleteCategory = async (id) => {
-  await db.query('DELETE FROM category WHERE id=?', [id]);
+  const [result] = await db.query('DELETE FROM category WHERE id=?', [id]);
+  return result.affectedRows;
 };

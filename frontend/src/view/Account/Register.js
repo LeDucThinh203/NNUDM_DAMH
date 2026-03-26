@@ -11,16 +11,40 @@ export default function Register() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({});
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const pickFieldErrors = (errors) => {
+    const mapped = {};
+    if (!Array.isArray(errors)) return mapped;
+
+    errors.forEach((item) => {
+      if (!item?.field || !item?.message) return;
+      if (!mapped[item.field]) mapped[item.field] = item.message;
+    });
+
+    return mapped;
+  };
+
+  const clearFieldError = (field) => {
+    setFieldErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
     setSuccess("");
+    setFieldErrors({});
 
     if (password !== confirmPassword) {
-      setError("Mật khẩu và xác nhận mật khẩu không khớp");
+      setFieldErrors({ confirmPassword: "Mật khẩu và xác nhận mật khẩu không khớp" });
+      setError("Vui lòng kiểm tra lại thông tin");
       return;
     }
 
@@ -34,7 +58,9 @@ export default function Register() {
         setError("Đăng ký thất bại, thử lại sau!");
       }
     } catch (err) {
-      setError(err.message || "Đã xảy ra lỗi");
+      const mapped = pickFieldErrors(err?.errors);
+      setFieldErrors(mapped);
+      setError(err?.message || "Đã xảy ra lỗi");
     } finally {
       setLoading(false);
     }
@@ -84,9 +110,15 @@ export default function Register() {
                 placeholder="Email"
                 className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-green-400 transition text-gray-700"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  clearFieldError("email");
+                }}
                 required
               />
+              {fieldErrors.email && (
+                <p className="text-red-600 text-sm mt-1 ml-1">{fieldErrors.email}</p>
+              )}
             </div>
 
             <div className="relative">
@@ -96,9 +128,15 @@ export default function Register() {
                 placeholder="Username"
                 className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-green-400 transition text-gray-700"
                 value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                onChange={(e) => {
+                  setUsername(e.target.value);
+                  clearFieldError("username");
+                }}
                 required
               />
+              {fieldErrors.username && (
+                <p className="text-red-600 text-sm mt-1 ml-1">{fieldErrors.username}</p>
+              )}
             </div>
 
             <div className="relative">
@@ -108,9 +146,15 @@ export default function Register() {
                 placeholder="Mật khẩu"
                 className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-green-400 transition text-gray-700"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  clearFieldError("password");
+                }}
                 required
               />
+              {fieldErrors.password && (
+                <p className="text-red-600 text-sm mt-1 ml-1">{fieldErrors.password}</p>
+              )}
             </div>
 
             <div className="relative">
@@ -120,9 +164,15 @@ export default function Register() {
                 placeholder="Xác nhận mật khẩu"
                 className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-green-400 transition text-gray-700"
                 value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
+                onChange={(e) => {
+                  setConfirmPassword(e.target.value);
+                  clearFieldError("confirmPassword");
+                }}
                 required
               />
+              {fieldErrors.confirmPassword && (
+                <p className="text-red-600 text-sm mt-1 ml-1">{fieldErrors.confirmPassword}</p>
+              )}
             </div>
 
             <button

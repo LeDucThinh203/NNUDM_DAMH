@@ -16,9 +16,11 @@ export const createSize = async ({ size }) => {
 };
 
 export const updateSize = async (id, { size }) => {
-  await db.query('UPDATE sizes SET size=? WHERE id=?', [size, id]);
+  const [result] = await db.query('UPDATE sizes SET size=? WHERE id=?', [size, id]);
+  return result.affectedRows;
 };
 
 export const deleteSize = async (id) => {
-  await db.query('DELETE FROM sizes WHERE id=?', [id]);
+  const [result] = await db.query('DELETE FROM sizes WHERE id=?', [id]);
+  return result.affectedRows;
 };

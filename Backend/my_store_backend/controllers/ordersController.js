@@ -1,39 +1,42 @@
 import * as ordersRepo from '../repositories/ordersRepository.js';
+import { created, fail, notFound, ok, serverError } from '../utils/response.js';
 
 export const getAllOrders = async (req, res) => {
   try {
     const orders = await ordersRepo.getAllOrders();
-    res.json(orders);
+    return ok(res, orders);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return serverError(res, err);
   }
 };
 
 export const getOrderById = async (req, res) => {
   try {
     const order = await ordersRepo.getOrderById(req.params.id);
-    if (!order) return res.status(404).json({ message: 'Order not found' });
-    res.json(order);
+    if (!order) return notFound(res, 'don hang khong ton tai');
+    return ok(res, order);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return serverError(res, err);
   }
 };
 
 export const createOrder = async (req, res) => {
   try {
     const id = await ordersRepo.createOrder(req.body);
-    res.status(201).json({ id });
+    return created(res, { id });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return fail(res, 400, err.message);
   }
 };
 
 export const updateOrderStatus = async (req, res) => {
   try {
-    await ordersRepo.updateOrderStatus(req.params.id, req.body);
-    res.json({ message: 'Updated successfully' });
+    const affectedRows = await ordersRepo.updateOrderStatus(req.params.id, req.body);
+    if (affectedRows === 0) return notFound(res, 'don hang khong ton tai');
+    const updated = await ordersRepo.getOrderById(req.params.id);
+    return ok(res, updated);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return serverError(res, err);
   }
 };
 
@@ -47,22 +50,23 @@ export const deleteOrder = async (req, res) => {
     const order = await ordersRepo.getOrderById(orderId);
     
     if (!order) {
-      return res.status(404).json({ error: 'Đơn hàng không tồn tại' });
+      return notFound(res, 'don hang khong ton tai');
     }
 
     // Kiểm tra quyền: admin hoặc chủ đơn hàng
     if (!isAdmin && order.account_id !== userId) {
-      return res.status(403).json({ error: 'Không có quyền hủy đơn hàng này' });
+      return fail(res, 403, 'khong co quyen huy don hang nay');
     }
 
     // User thường chỉ có thể hủy đơn pending
     if (!isAdmin && order.status !== 'pending') {
-      return res.status(403).json({ error: 'Chỉ có thể hủy đơn hàng đang chờ xử lý' });
+      return fail(res, 403, 'chi co the huy don hang dang cho xu ly');
     }
 
-    await ordersRepo.deleteOrder(orderId);
-    res.json({ message: 'Deleted successfully' });
+    const affectedRows = await ordersRepo.deleteOrder(orderId);
+    if (affectedRows === 0) return notFound(res, 'don hang khong ton tai');
+    return ok(res, { message: 'xoa thanh cong' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return serverError(res, err);
   }
 };

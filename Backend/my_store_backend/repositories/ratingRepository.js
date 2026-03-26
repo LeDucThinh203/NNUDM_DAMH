@@ -49,13 +49,15 @@ export const updateRating = async (id, data) => {
     values.push(data.replied_at);
   }
 
-  if (fields.length === 0) return; // nothing to update
+  if (fields.length === 0) return 0; // nothing to update
 
   const sql = `UPDATE rating SET ${fields.join(', ')} WHERE id=?`;
   values.push(id);
-  await db.query(sql, values);
+  const [result] = await db.query(sql, values);
+  return result.affectedRows;
 };
 
 export const deleteRating = async (id) => {
-  await db.query('DELETE FROM rating WHERE id=?', [id]);
+  const [result] = await db.query('DELETE FROM rating WHERE id=?', [id]);
+  return result.affectedRows;
 };

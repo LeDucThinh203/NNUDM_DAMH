@@ -209,7 +209,12 @@ export const register = async ({ email, username, password, role = "user" }) => 
     body: JSON.stringify({ email, username, password, role }),
   });
   const data = await safeJson(res);
-  if (!res.ok) throw new Error(data.error || "Đăng ký thất bại");
+  if (!res.ok) {
+    const error = new Error(data?.message || data?.error || "Đăng ký thất bại");
+    error.status = res.status;
+    error.errors = Array.isArray(data?.errors) ? data.errors : [];
+    throw error;
+  }
   return data;
 };
 
@@ -255,7 +260,7 @@ export const forgotPassword = async (email) => {
     body: JSON.stringify({ email }),
   });
   const data = await safeJson(res);
-  if (!res.ok) throw new Error(data.error || "Không thể gửi email khôi phục mật khẩu");
+  if (!res.ok) throw new Error(data?.message || data?.error || "Không thể gửi email khôi phục mật khẩu");
   return data;
 };
 
@@ -266,7 +271,7 @@ export const resetPassword = async (token, newPassword) => {
     body: JSON.stringify({ newPassword }),
   });
   const data = await safeJson(res);
-  if (!res.ok) throw new Error(data.error || "Đặt lại mật khẩu thất bại");
+  if (!res.ok) throw new Error(data?.message || data?.error || "Đặt lại mật khẩu thất bại");
   return data;
 };
 

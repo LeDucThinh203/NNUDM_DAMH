@@ -19,12 +19,15 @@ export const createOrderDetail = async ({ order_id, product_sizes_id, quantity, 
 };
 
 export const updateOrderDetail = async (id, { order_id, product_sizes_id, quantity, price }) => {
-  await db.query(
+  const [result] = await db.query(
     'UPDATE order_details SET order_id=?, product_sizes_id=?, quantity=?, price=? WHERE id=?',
     [order_id, product_sizes_id, quantity, price, id]
   );
+
+  return result.affectedRows;
 };
 
 export const deleteOrderDetail = async (id) => {
-  await db.query('DELETE FROM order_details WHERE id=?', [id]);
+  const [result] = await db.query('DELETE FROM order_details WHERE id=?', [id]);
+  return result.affectedRows;
 };
