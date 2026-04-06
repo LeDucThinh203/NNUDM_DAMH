@@ -29,6 +29,7 @@ import AdminDashboard from "./view/Admin/AdminDashboard";
 
 // User
 import UserDashboard from "./view/User/UserDashboard";
+import ChatPage from "./view/Chat/ChatPage";
 
 // Order Success
 import OrderSuccess from "./view/Cart/OrderSuccess";
@@ -84,6 +85,11 @@ function AppContent() {
     return children;
   };
 
+  const LoggedInRoute = ({ children }) => {
+    if (!Session.isLoggedIn()) return <Login setUser={setUser} />;
+    return children;
+  };
+
   const ConfirmationRoute = ({ children }) => {
     if (!Session.isLoggedIn()) {
       window.alert("Bạn cần đăng nhập để xác nhận đơn hàng!");
@@ -132,6 +138,14 @@ function AppContent() {
             <Route path="/order-success" element={<OrderSuccess />} />
             <Route path="/vnpay-return" element={<VNPayReturn />} />
             <Route path="/vnpay-debug" element={<VNPayDebug />} />
+            <Route
+              path="/chat"
+              element={
+                <LoggedInRoute>
+                  <ChatPage />
+                </LoggedInRoute>
+              }
+            />
 
             {/* Admin */}
             <Route

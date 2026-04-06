@@ -11,6 +11,7 @@ import orderDetailsRoutes from './order_details.js';
 import ratingRoutes from './rating.js';
 import sizesRoutes from './sizes.js';
 import vnpayRoutes from './vnpay.js';
+import chatRoutes from './chat.js';
 
 
 const router = express.Router();
@@ -26,6 +27,7 @@ router.use('/order_details', orderDetailsRoutes);
 router.use('/rating', ratingRoutes);
 router.use('/sizes', sizesRoutes);
 router.use('/vnpay', vnpayRoutes);
+router.use('/chat', chatRoutes);
 
 
 export default router;

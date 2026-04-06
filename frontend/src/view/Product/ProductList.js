@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { getAllProducts, deleteProduct, getAllCategories, getAllSizes, getAllProductSizes } from "../../api";
 import { Link, useNavigate } from "react-router-dom";
+import ChatWidget from "../Chat/ChatWidget";
 
 // Session utility - định nghĩa trước để sử dụng trong component
 const Session = {
@@ -475,6 +476,8 @@ export default function ProductList() {
           </div>
         </div>
       </div>
+
+      <ChatWidget />
     </div>
   );
 }
@@ -618,6 +621,10 @@ function Header({ user, handleLogout, products = [], onSearch, cartCount = 0 }) 
                 {cartCount}
               </span>
             )}
+          </Link>
+
+          <Link to="/chat" className="hover:text-blue-500 transition">
+            💬 Chat realtime
           </Link>
 
           {user?.username ? (

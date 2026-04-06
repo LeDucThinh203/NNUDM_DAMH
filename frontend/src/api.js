@@ -603,3 +603,24 @@ export const updateOrderPaymentStatus = async (orderId, isPaid, paymentInfo) => 
   return await safeJson(res);
 };
 
+// ================= Chat API =================
+const CHAT_API_URL = `${API_BASE_URL}/chat`;
+
+export const getChatUsers = async () => {
+  const res = await fetch(`${CHAT_API_URL}/users`, {
+    headers: getAuthHeaders()
+  });
+  const data = await safeJson(res);
+  if (!res.ok) throw new Error(data.error || 'Không thể lấy danh sách user chat');
+  return data;
+};
+
+export const getConversationMessages = async (userId, limit = 100) => {
+  const res = await fetch(`${CHAT_API_URL}/messages/${userId}?limit=${limit}`, {
+    headers: getAuthHeaders()
+  });
+  const data = await safeJson(res);
+  if (!res.ok) throw new Error(data.error || 'Không thể lấy lịch sử tin nhắn');
+  return data;
+};
+

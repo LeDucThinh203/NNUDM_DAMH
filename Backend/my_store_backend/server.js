@@ -1,15 +1,18 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
+import { createServer } from 'http';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import swaggerUi from 'swagger-ui-express';
 import swaggerJsdoc from 'swagger-jsdoc';
 
 import uiRoutes from './routes/ui.js'; // gom tất cả route
+import { initChatSocket } from './socket/chatSocket.js';
 
 dotenv.config();
 const app = express();
+const httpServer = createServer(app);
 
 // --- Middleware ---
 app.use(express.json());
@@ -85,7 +88,9 @@ app.get('/api/config', (req, res) => {
 });
 
 // --- Start server ---
-app.listen(PORT, '0.0.0.0', () => {
+initChatSocket(httpServer);
+
+httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running at http://localhost:${PORT}`);
   console.log(`🔗 Swagger UI: ${SERVER_URL}/swagger`);
 });

@@ -107,13 +107,22 @@ export default function Header() {
                   )}
 
                   {user.role === "user" && (
-                    <Link
-                      to="/user"
-                      className="block px-4 py-2 hover:bg-gray-100 transition"
-                      onClick={() => setDropdownOpen(false)}
-                    >
-                      👤 Thông tin tài khoản người dùng
-                    </Link>
+                    <>
+                      <Link
+                        to="/user"
+                        className="block px-4 py-2 hover:bg-gray-100 transition"
+                        onClick={() => setDropdownOpen(false)}
+                      >
+                        👤 Thông tin tài khoản người dùng
+                      </Link>
+                      <Link
+                        to="/chat"
+                        className="block px-4 py-2 hover:bg-gray-100 transition"
+                        onClick={() => setDropdownOpen(false)}
+                      >
+                        💬 Chat real-time
+                      </Link>
+                    </>
                   )}
 
                   <button
