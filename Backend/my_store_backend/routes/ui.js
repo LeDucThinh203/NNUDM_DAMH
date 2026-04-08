@@ -10,6 +10,7 @@ import ordersRoutes from './orders.js';
 import orderDetailsRoutes from './order_details.js';
 import ratingRoutes from './rating.js';
 import sizesRoutes from './sizes.js';
+import cartRoutes from './cart.js';
 import vnpayRoutes from './vnpay.js';
 import chatRoutes from './chat.js';
 
@@ -26,6 +27,7 @@ router.use('/orders', ordersRoutes);
 router.use('/order_details', orderDetailsRoutes);
 router.use('/rating', ratingRoutes);
 router.use('/sizes', sizesRoutes);
+router.use('/cart', cartRoutes);
 router.use('/vnpay', vnpayRoutes);
 router.use('/chat', chatRoutes);
 

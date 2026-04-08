@@ -20,6 +20,40 @@ export default function Login({ setUser }) {
       const user = await api.login({ email, password });
       if (user && user.id && user.token) {
         Session.setUser(user.id, user.username, user.role, user.email, user.token);
+        
+        // Sync giỏ hàng khách từ localStorage vào database
+        const guestCart = JSON.parse(localStorage.getItem("cart") || "[]");
+        if (guestCart.length > 0) {
+          try {
+            console.log("🔄 Syncing guest cart to database...", guestCart);
+            const syncResult = await api.syncGuestCart(guestCart);
+            console.log("✅ Cart synced successfully:", syncResult);
+            
+            // Chỉ xóa localStorage sau khi sync thành công
+            localStorage.removeItem("cart");
+            localStorage.setItem("cart-synced-timestamp", Date.now().toString());
+            window.dispatchEvent(new Event("cart-updated"));
+            
+            // Hiển thị thông báo thành công nếu có sản phẩm
+            if (syncResult.items && syncResult.items.length > 0) {
+              console.log(`📦 ${syncResult.items.length} items added to cart`);
+            }
+          } catch (syncErr) {
+            // Nếu sync thất bại, giữ localStorage để user có thể thử lại
+            console.error("❌ Cart sync failed:", syncErr);
+            console.log("⚠️ Keeping local cart. Will retry on cart page.");
+            
+            // Lưu error để Cart component có thể xử lý
+            localStorage.setItem("cart-sync-error", JSON.stringify({
+              timestamp: Date.now(),
+              error: syncErr.message,
+              itemCount: guestCart.length
+            }));
+            
+            // Vẫn cho phép đăng nhập nhưng thông báo khi vào giỏ hàng
+          }
+        }
+        
         setUser(user);
         navigate("/");
       } else {

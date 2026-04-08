@@ -315,6 +315,79 @@ export const deleteAddress = async (id) => {
 };
 
 
+// ================= Cart API =================
+const CART_API_URL = `${API_BASE_URL}/cart`;
+
+export const getMyCart = async () => {
+  const res = await fetch(`${CART_API_URL}/me`, {
+    headers: getAuthHeaders()
+  });
+  if (!res.ok) throw new Error("Lấy giỏ hàng thất bại");
+  return await safeJson(res);
+};
+
+export const syncGuestCart = async (items) => {
+  const res = await fetch(`${CART_API_URL}/sync`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ items }),
+  });
+  
+  const data = await safeJson(res);
+  
+  if (!res.ok) {
+    const errorMsg = data.error || "Đồng bộ giỏ hàng thất bại";
+    throw new Error(errorMsg);
+  }
+  
+  // Kiểm tra xem có partial sync failures không
+  if (data._metadata?.failedCount > 0) {
+    console.warn(`⚠️ ${data._metadata.failedCount} items could not be synced:`, data._metadata.errors);
+  }
+  
+  return data;
+};
+
+export const addCartItem = async ({ product_id, size, quantity = 1 }) => {
+  const res = await fetch(`${CART_API_URL}/items`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ product_id, size, quantity }),
+  });
+  if (!res.ok) {
+    const data = await safeJson(res);
+    throw new Error(data.error || "Thêm vào giỏ hàng thất bại");
+  }
+  return await safeJson(res);
+};
+
+export const updateCartItem = async ({ product_id, size, quantity }) => {
+  const res = await fetch(`${CART_API_URL}/items`, {
+    method: "PUT",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ product_id, size, quantity }),
+  });
+  if (!res.ok) {
+    const data = await safeJson(res);
+    throw new Error(data.error || "Cập nhật giỏ hàng thất bại");
+  }
+  return await safeJson(res);
+};
+
+export const removeCartItem = async ({ product_id, size }) => {
+  const res = await fetch(`${CART_API_URL}/items`, {
+    method: "DELETE",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ product_id, size }),
+  });
+  if (!res.ok) {
+    const data = await safeJson(res);
+    throw new Error(data.error || "Xóa khỏi giỏ hàng thất bại");
+  }
+  return await safeJson(res);
+};
+
+
 // ================= ProductSize API =================
 const PRODUCT_SIZE_API_URL = `${API_BASE_URL}/product_sizes`;
 
