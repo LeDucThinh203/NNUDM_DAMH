@@ -3,51 +3,43 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import nodemailer from 'nodemailer';
 import { generateToken } from '../middleware/auth.js';
+import { badRequest, unauthorized, notFound, serverError, success } from '../utils/response.js';
 
-/** ================= Đăng ký tài khoản ================= */
 export const register = async (req, res) => {
   const { email, username, password, role } = req.body;
-  if (!email || !username || !password)
-    return res.status(400).json({ error: 'Email, username và password là bắt buộc' });
+  if (!email || !username || !password) {
+    return badRequest(res, 'Email, username và password là bắt buộc');
+  }
 
   try {
     const existing = await accountRepo.getAccountByEmail(email);
-    if (existing) return res.status(400).json({ error: 'Email đã tồn tại' });
+    if (existing) return badRequest(res, 'Email đã tồn tại');
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const id = await accountRepo.createAccount({ email, username, password: hashedPassword, role: role || 'user' });
 
-    // Tạo JWT token
     const userRole = role || 'user';
     const token = generateToken({ id, email, username, role: userRole });
 
-    res.status(201).json({ 
-      id, 
-      email, 
-      username, 
-      role: userRole,
-      token 
-    });
+    success(res, { id, email, username, role: userRole, token }, 201);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 };
 
-/** ================= Đăng nhập ================= */
 export const login = async (req, res) => {
   const { email, password } = req.body;
-  if (!email || !password)
-    return res.status(400).json({ error: 'Email và password là bắt buộc' });
+  if (!email || !password) {
+    return badRequest(res, 'Email và password là bắt buộc');
+  }
 
   try {
     const account = await accountRepo.getAccountByEmail(email);
-    if (!account) return res.status(400).json({ error: 'Email không tồn tại' });
+    if (!account) return unauthorized(res, 'Email không tồn tại');
 
     const isMatch = await bcrypt.compare(password, account.password);
-    if (!isMatch) return res.status(400).json({ error: 'Mật khẩu không đúng' });
+    if (!isMatch) return unauthorized(res, 'Mật khẩu không đúng');
 
-    // Tạo JWT token
     const token = generateToken({
       id: account.id,
       email: account.email,
@@ -55,7 +47,7 @@ export const login = async (req, res) => {
       role: account.role
     });
 
-    res.json({
+    success(res, {
       id: account.id,
       username: account.username,
       role: account.role,
@@ -63,80 +55,76 @@ export const login = async (req, res) => {
       token
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 };
 
-/** ================= Lấy tất cả tài khoản ================= */
 export const getAllAccounts = async (req, res) => {
   try {
     const accounts = await accountRepo.getAllAccounts();
-    res.json(accounts);
+    success(res, accounts);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 };
 
-/** ================= Lấy account theo ID ================= */
 export const getAccountById = async (req, res) => {
   try {
     const account = await accountRepo.getAccountById(req.params.id);
-    res.json(account);
+    if (!account) return notFound(res, 'Tài khoản không tồn tại');
+    success(res, account);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 };
 
-/** ================= Cập nhật account ================= */
 export const updateAccount = async (req, res) => {
   try {
+    const existing = await accountRepo.getAccountById(req.params.id);
+    if (!existing) return notFound(res, 'Tài khoản không tồn tại');
+
     await accountRepo.updateAccount(req.params.id, req.body);
-    res.json({ message: 'Cập nhật thành công' });
+    success(res, { message: 'Cập nhật tài khoản thành công' });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 };
 
-/** ================= Xóa account ================= */
 export const deleteAccount = async (req, res) => {
   try {
+    const existing = await accountRepo.getAccountById(req.params.id);
+    if (!existing) return notFound(res, 'Tài khoản không tồn tại');
+
     await accountRepo.deleteAccount(req.params.id);
-    res.json({ message: 'Xóa thành công' });
+    success(res, { message: 'Xóa tài khoản thành công' });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 };
 
-/** ================= Quên mật khẩu ================= */
 export const forgotPassword = async (req, res) => {
   const { email } = req.body;
-  if (!email) return res.status(400).json({ error: 'Vui lòng nhập email' });
+  if (!email) return badRequest(res, 'Vui lòng nhập email');
 
   try {
     const account = await accountRepo.getAccountByEmail(email);
-    if (!account) return res.status(404).json({ error: 'Email không tồn tại' });
+    if (!account) return notFound(res, 'Email không tồn tại');
 
     const token = crypto.randomBytes(32).toString('hex');
-    const expiryDate = new Date(Date.now() + 15 * 60 * 1000); // 15 phút
+    const expiryDate = new Date(Date.now() + 15 * 60 * 1000);
 
     await accountRepo.saveResetToken(account.id, token, expiryDate);
 
     const resetLink = `http://localhost:3000/reset-password/${token}`;
 
-    // Giao diện email HTML đẹp
     const emailHtml = `
       <div style="font-family: Arial, sans-serif; text-align:center; padding:30px; background-color:#f9f9f9;">
         <h2 style="color:#1E40AF;">CoolShop - Khôi phục mật khẩu</h2>
         <p>Xin chào <strong>${account.username}</strong>,</p>
         <p>Bạn vừa yêu cầu đặt lại mật khẩu cho tài khoản của mình.</p>
-        <a href="${resetLink}" 
-          style="display:inline-block; padding:12px 24px; margin:20px 0; 
-                 background-color:#1E40AF; color:white; text-decoration:none; 
+        <a href="${resetLink}"
+          style="display:inline-block; padding:12px 24px; margin:20px 0;
+                 background-color:#1E40AF; color:white; text-decoration:none;
                  font-weight:bold; border-radius:6px;">
           Đặt lại mật khẩu
         </a>
@@ -157,34 +145,33 @@ export const forgotPassword = async (req, res) => {
       html: emailHtml,
     });
 
-    res.json({ message: 'Email khôi phục mật khẩu đã gửi. Vui lòng kiểm tra hộp thư.' });
+    success(res, { message: 'Email khôi phục mật khẩu đã gửi. Vui lòng kiểm tra hộp thư.' });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 };
 
-/** ================= Đặt lại mật khẩu ================= */
 export const resetPassword = async (req, res) => {
   const { token } = req.params;
   const { newPassword } = req.body;
 
-  if (!token || !newPassword)
-    return res.status(400).json({ error: 'Token và mật khẩu mới là bắt buộc' });
+  if (!token || !newPassword) {
+    return badRequest(res, 'Token và mật khẩu mới là bắt buộc');
+  }
 
   try {
     const account = await accountRepo.getAccountByResetToken(token);
-    if (!account) return res.status(400).json({ error: 'Token không hợp lệ hoặc đã hết hạn' });
+    if (!account) return badRequest(res, 'Token không hợp lệ hoặc đã hết hạn');
 
-    if (new Date() > new Date(account.reset_token_expiry))
-      return res.status(400).json({ error: 'Token đã hết hạn' });
+    if (new Date() > new Date(account.reset_token_expiry)) {
+      return badRequest(res, 'Token đã hết hạn');
+    }
 
     const hashed = await bcrypt.hash(newPassword, 10);
     await accountRepo.updateAccountPassword(account.id, hashed);
 
-    res.json({ message: 'Đặt lại mật khẩu thành công' });
+    success(res, { message: 'Đặt lại mật khẩu thành công' });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 };
