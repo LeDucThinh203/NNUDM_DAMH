@@ -1,6 +1,7 @@
 // src/view/Product/ProductDetail.js
 import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import Session from "../../Session/session";
 import { 
   getProductById, 
   getAllSizes, 
@@ -11,7 +12,8 @@ import {
   createRating,
   getAllAccounts,
   getAllOrderDetails,
-  getAllOrders
+  getAllOrders,
+  addCartItem
 } from "../../api";
 
 // Resolve image URL for products
@@ -165,7 +167,7 @@ export default function ProductDetail() {
   };
 
   // ... phần còn lại của code giữ nguyên
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
     if (!selectedSize) {
       alert("Vui lòng chọn size!");
       return;
@@ -184,6 +186,22 @@ export default function ProductDetail() {
     // Tính giá sau giảm
     const discount = Number(product.discount_percent || 0);
     const finalPrice = discount > 0 ? product.price * (1 - discount / 100) : product.price;
+
+    if (Session.isLoggedIn()) {
+      try {
+        await addCartItem({
+          product_id: product.id,
+          size: selectedSize,
+          quantity: 1
+        });
+        window.dispatchEvent(new Event("cart-updated"));
+        alert(`🛒 Đã thêm "${product.name}" (Size: ${selectedSize}) vào giỏ hàng!`);
+        return;
+      } catch (err) {
+        alert(err.message || "❌ Thêm vào giỏ hàng thất bại!");
+        return;
+      }
+    }
 
     const cart = JSON.parse(localStorage.getItem("cart")) || [];
     const existingItem = cart.find(item => 
@@ -209,6 +227,7 @@ export default function ProductDetail() {
     }
 
     localStorage.setItem("cart", JSON.stringify(cart));
+    window.dispatchEvent(new Event("cart-updated"));
     alert(`🛒 Đã thêm "${product.name}" (Size: ${selectedSize}) vào giỏ hàng!`);
   };
 

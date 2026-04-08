@@ -1,51 +1,66 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import Session from "../../Session/session";
+import { getMyCart } from "../../api";
 
-export default function Header() {
-  const [user, setUser] = useState(null);
+export default function Header({ user: initialUser, handleLogout: onLogout }) {
+  const [user, setUser] = useState(initialUser || null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [cartCount, setCartCount] = useState(0);
   const navigate = useNavigate();
 
-  // Hàm cập nhật số lượng sản phẩm trong giỏ hàng
-  const updateCartCount = () => {
+  useEffect(() => {
+    setUser(initialUser || null);
+  }, [initialUser]);
+
+  const updateCartCount = async () => {
+    if (Session.isLoggedIn()) {
+      try {
+        const data = await getMyCart();
+        setCartCount(Number(data.totalQuantity || 0));
+        return;
+      } catch (error) {
+        console.error("Không thể tải số lượng giỏ hàng:", error);
+        setCartCount(0);
+        return;
+      }
+    }
+
     const cart = JSON.parse(localStorage.getItem('cart') || '[]');
     const totalItems = cart.reduce((sum, item) => sum + (item.quantity || 1), 0);
     setCartCount(totalItems);
   };
 
-  // Lấy user từ localStorage khi component mount
   useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-    
-    // Cập nhật cart count lần đầu
     updateCartCount();
-    
-    // Lắng nghe sự kiện storage để cập nhật khi cart thay đổi từ tab khác
+
     const handleStorageChange = (e) => {
       if (e.key === 'cart') {
         updateCartCount();
       }
     };
+
+    const handleCartUpdated = () => {
+      updateCartCount();
+    };
     
     window.addEventListener('storage', handleStorageChange);
-    
-    // Polling để cập nhật cart count định kỳ (cho trường hợp cùng tab)
-    const interval = setInterval(updateCartCount, 1000);
+    window.addEventListener('cart-updated', handleCartUpdated);
     
     return () => {
       window.removeEventListener('storage', handleStorageChange);
-      clearInterval(interval);
+      window.removeEventListener('cart-updated', handleCartUpdated);
     };
-  }, []);
+  }, [user?.id, user?.role]);
 
   const toggleDropdown = () => setDropdownOpen(!dropdownOpen);
 
   const handleLogout = () => {
-    localStorage.removeItem("user");
+    if (onLogout) {
+      onLogout();
+    } else {
+      Session.logout();
+    }
     setUser(null);
     setDropdownOpen(false);
     navigate("/login");

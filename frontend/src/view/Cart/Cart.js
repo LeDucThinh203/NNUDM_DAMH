@@ -1,17 +1,83 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { getAllProductSizes, getAllSizes } from "../../api";
+import Session from "../../Session/session";
+import { getAllProductSizes, getAllSizes, getMyCart, updateCartItem, removeCartItem, syncGuestCart } from "../../api";
 
 export default function Cart() {
   const [cart, setCart] = useState([]);
   const [visibleCount, setVisibleCount] = useState(10);
   const [sizes, setSizes] = useState([]);
   const [productSizes, setProductSizes] = useState([]);
+  const [syncError, setSyncError] = useState(null);
+  const [isSyncing, setIsSyncing] = useState(false);
   const navigate = useNavigate();
 
-  useEffect(() => {
+  // Thử sync lại giỏ hàng từ localStorage
+  const retrySyncCart = async () => {
+    setIsSyncing(true);
+    try {
+      const guestCart = JSON.parse(localStorage.getItem("cart") || "[]");
+      if (guestCart.length === 0) {
+        setSyncError(null);
+        return;
+      }
+
+      console.log("🔄 Retrying cart sync...", guestCart);
+      const syncResult = await syncGuestCart(guestCart);
+      console.log("✅ Cart retry sync successful:", syncResult);
+      
+      // Sync thành công, xóa localStorage và error
+      localStorage.removeItem("cart");
+      localStorage.removeItem("cart-sync-error");
+      setSyncError(null);
+      
+      // Reload giỏ hàng từ DB
+      window.dispatchEvent(new Event("cart-updated"));
+    } catch (err) {
+      console.error("❌ Cart retry sync failed:", err);
+      setSyncError(err.message || "Không thể đồng bộ giỏ hàng. Vui lòng thử lại.");
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const loadCart = async () => {
+    // Kiểm tra xem user vừa đăng nhập và có sync error không
+    const cartSyncError = localStorage.getItem("cart-sync-error");
+    
+    if (Session.isLoggedIn()) {
+      try {
+        const data = await getMyCart();
+        setCart(data.items || []);
+        
+        // Nếu DB rỗng và có localStorage + sync error, cho biết user
+        if ((data.items || []).length === 0 && cartSyncError) {
+          const errorData = JSON.parse(cartSyncError);
+          setSyncError(`⚠️ Không thể đồng bộ ${errorData.itemCount} sản phẩm từ giỏ hàng trước đó. Nhấp "Thử lại" để đồng bộ.`);
+        } else {
+          setSyncError(null);
+        }
+        return;
+      } catch (err) {
+        console.error("Error loading cart from DB:", err);
+        setCart([]);
+        setSyncError("Không thể tải giỏ hàng. Vui lòng làm mới trang.");
+        return;
+      }
+    }
+
+    // Nếu chưa đăng nhập, tải từ localStorage
     const storedCart = JSON.parse(localStorage.getItem("cart")) || [];
     setCart(storedCart);
+    setSyncError(null);
+  };
+
+  useEffect(() => {
+    loadCart().catch((e) => {
+      console.error("Không thể tải giỏ hàng:", e);
+      setCart([]);
+    });
+
     (async () => {
       try {
         const [sizesData, psData] = await Promise.all([
@@ -24,29 +90,67 @@ export default function Cart() {
         console.error("Không thể tải tồn kho:", e);
       }
     })();
+    const handleCartUpdated = () => {
+      loadCart().catch((e) => {
+        console.error("Không thể tải lại giỏ hàng:", e);
+      });
+    };
+
+    window.addEventListener("cart-updated", handleCartUpdated);
+
+    return () => {
+      window.removeEventListener("cart-updated", handleCartUpdated);
+    };
   }, []);
 
-  const handleRemove = (id, size = "") => {
-    const newCart = cart.filter((item) => 
-      !(item.id === id && item.size === size)
-    );
-    setCart(newCart);
-    localStorage.setItem("cart", JSON.stringify(newCart));
+  const handleRemove = async (id, size = "") => {
+    try {
+      if (Session.isLoggedIn()) {
+        await removeCartItem({ product_id: id, size });
+        window.dispatchEvent(new Event("cart-updated"));
+        return;
+      }
+
+      const newCart = cart.filter((item) => 
+        !(item.id === id && item.size === size)
+      );
+      setCart(newCart);
+      localStorage.setItem("cart", JSON.stringify(newCart));
+      window.dispatchEvent(new Event("cart-updated"));
+    } catch (error) {
+      console.error("Không thể xóa sản phẩm khỏi giỏ:", error);
+      alert(error.message || "Không thể xóa sản phẩm khỏi giỏ hàng");
+    }
   };
 
-  const handleQuantityChange = (id, size, delta) => {
-    const newCart = cart.map((item) => {
-      if (item.id === id && item.size === size) {
-        const stock = getStockForItem(item);
-        const newQuantity = item.quantity + delta;
-        // Không cho giảm xuống dưới 1, không cho tăng vượt stock
-        const finalQuantity = Math.max(1, Math.min(newQuantity, stock));
-        return { ...item, quantity: finalQuantity };
+  const handleQuantityChange = async (id, size, delta) => {
+    try {
+      const item = cart.find((cartItem) => cartItem.id === id && cartItem.size === size);
+      if (!item) return;
+
+      const stock = getStockForItem(item);
+      const newQuantity = item.quantity + delta;
+      const finalQuantity = Math.max(1, Math.min(newQuantity, stock));
+
+      if (Session.isLoggedIn()) {
+        await updateCartItem({ product_id: id, size, quantity: finalQuantity });
+        window.dispatchEvent(new Event("cart-updated"));
+        return;
       }
-      return item;
-    });
-    setCart(newCart);
-    localStorage.setItem("cart", JSON.stringify(newCart));
+
+      const newCart = cart.map((cartItem) => {
+        if (cartItem.id === id && cartItem.size === size) {
+          return { ...cartItem, quantity: finalQuantity };
+        }
+        return cartItem;
+      });
+      setCart(newCart);
+      localStorage.setItem("cart", JSON.stringify(newCart));
+      window.dispatchEvent(new Event("cart-updated"));
+    } catch (error) {
+      console.error("Không thể cập nhật số lượng:", error);
+      alert(error.message || "Không thể cập nhật số lượng giỏ hàng");
+    }
   };
 
   const getStockForItem = (item) => {
@@ -88,14 +192,60 @@ export default function Cart() {
 
   if (cart.length === 0)
     return (
-      <div className="text-center mt-20 text-gray-500">
-        🛒 Giỏ hàng trống. <Link to="/" className="text-blue-600 hover:underline">Quay lại mua sắm</Link>
+      <div className="max-w-5xl mx-auto p-8 text-center">
+        <div className="mt-20 text-gray-500">
+          <p className="text-6xl mb-4">🛒</p>
+          <p className="text-xl mb-4">Giỏ hàng trống.</p>
+          
+          {/* Hiển thị lỗi sync nếu có */}
+          {syncError && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6 max-w-md mx-auto">
+              <p className="text-yellow-800 font-medium mb-3">{syncError}</p>
+              <button
+                onClick={retrySyncCart}
+                disabled={isSyncing}
+                className={`px-4 py-2 rounded font-medium transition ${
+                  isSyncing
+                    ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                    : 'bg-yellow-600 text-white hover:bg-yellow-700'
+                }`}
+              >
+                {isSyncing ? '⏳ Đang đồng bộ...' : '🔄 Thử lại đồng bộ'}
+              </button>
+            </div>
+          )}
+          
+          <Link to="/" className="text-blue-600 hover:underline">Quay lại mua sắm</Link>
+        </div>
       </div>
     );
 
   return (
     <div className="max-w-5xl mx-auto p-8">
       <h1 className="text-3xl font-bold mb-6 text-center">🛒 Giỏ hàng của bạn</h1>
+      
+      {/* Hiển thị lỗi sync cart nếu có */}
+      {syncError && (
+        <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <div className="flex items-start gap-4">
+            <span className="text-2xl">⚠️</span>
+            <div className="flex-1">
+              <p className="text-yellow-800 font-medium">{syncError}</p>
+              <button
+                onClick={retrySyncCart}
+                disabled={isSyncing}
+                className={`mt-2 px-4 py-2 rounded font-medium transition ${
+                  isSyncing
+                    ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                    : 'bg-yellow-600 text-white hover:bg-yellow-700'
+                }`}
+              >
+                {isSyncing ? '⏳ Đang đồng bộ...' : '🔄 Thử lại'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       
       <div className="space-y-4">
         {groupedCartArray.map((item) => {
