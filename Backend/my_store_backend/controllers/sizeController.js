@@ -1,46 +1,64 @@
 import * as sizeRepo from '../repositories/sizeRepository.js';
+import { badRequest, notFound, serverError, success } from '../utils/response.js';
 
 export const getAllSizes = async (req, res) => {
   try {
     const sizes = await sizeRepo.getAllSizes();
-    res.json(sizes);
+    success(res, sizes);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 };
 
 export const getSizeById = async (req, res) => {
   try {
     const size = await sizeRepo.getSizeById(req.params.id);
-    res.json(size);
+    if (!size) return notFound(res, 'Size không tồn tại');
+    success(res, size);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 };
 
 export const createSize = async (req, res) => {
   try {
-    const id = await sizeRepo.createSize(req.body);
-    res.status(201).json({ id });
+    const { size } = req.body;
+    if (!size || String(size).trim() === '') {
+      return badRequest(res, 'Tên size là bắt buộc');
+    }
+
+    const id = await sizeRepo.createSize({ size: String(size).trim() });
+    success(res, { id, message: 'Tạo size thành công' }, 201);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 };
 
 export const updateSize = async (req, res) => {
   try {
-    await sizeRepo.updateSize(req.params.id, req.body);
-    res.json({ message: 'Updated successfully' });
+    const { size } = req.body;
+    if (!size || String(size).trim() === '') {
+      return badRequest(res, 'Tên size là bắt buộc');
+    }
+
+    const existing = await sizeRepo.getSizeById(req.params.id);
+    if (!existing) return notFound(res, 'Size không tồn tại');
+
+    await sizeRepo.updateSize(req.params.id, { size: String(size).trim() });
+    success(res, { message: 'Cập nhật size thành công' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 };
 
 export const deleteSize = async (req, res) => {
   try {
+    const existing = await sizeRepo.getSizeById(req.params.id);
+    if (!existing) return notFound(res, 'Size không tồn tại');
+
     await sizeRepo.deleteSize(req.params.id);
-    res.json({ message: 'Deleted successfully' });
+    success(res, { message: 'Xóa size thành công' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 };
