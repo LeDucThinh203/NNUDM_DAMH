@@ -10,10 +10,15 @@ export default function CategoryForm({ id, onClose }) {
   }, [id]);
 
   const fetchCategory = async () => {
-    const cat = await getCategoryById(id);
-    if (cat) {
-      setName(cat.name);
-      setDescription(cat.description);
+    try {
+      const cat = await getCategoryById(id);
+      if (cat) {
+        setName(cat.name);
+        setDescription(cat.description);
+      }
+    } catch (err) {
+      alert(`❌ Không tìm thấy danh mục: ${err.message}`);
+      onClose();
     }
   };
 
