@@ -1,11 +1,29 @@
 import { io } from 'socket.io-client';
 
 let socket = null;
-const SOCKET_SERVER_URL =
-  process.env.REACT_APP_SOCKET_URL || `${window.location.protocol}//${window.location.hostname}:3006`;
+
+const getSocketServerUrl = () => {
+  if (process.env.REACT_APP_SOCKET_URL) {
+    return process.env.REACT_APP_SOCKET_URL;
+  }
+
+  const host = window.location.hostname;
+  const isLocalDev = host === 'localhost' || host === '127.0.0.1';
+  if (isLocalDev) {
+    return `http://${host}:3006`;
+  }
+
+  return `${window.location.protocol}//${window.location.hostname}:3006`;
+};
 
 export const connectChatSocket = (token) => {
   if (!token) return null;
+
+  const socketToken = typeof token === 'string'
+    ? token.trim().replace(/^Bearer\s+/i, '')
+    : '';
+
+  if (!socketToken) return null;
 
   if (socket?.connected) {
     return socket;
@@ -16,9 +34,10 @@ export const connectChatSocket = (token) => {
     socket = null;
   }
 
-  socket = io(SOCKET_SERVER_URL, {
-    transports: ['websocket', 'polling'],
-    auth: { token }
+  socket = io(getSocketServerUrl(), {
+    transports: ['polling', 'websocket'],
+    upgrade: true,
+    auth: { token: socketToken }
   });
 
   socket.on('connect_error', (error) => {

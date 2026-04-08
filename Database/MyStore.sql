@@ -125,6 +125,8 @@ CREATE TABLE `chat_messages` (
   `sender_id` int NOT NULL,
   `receiver_id` int NOT NULL,
   `message` text NOT NULL,
+  `file_path` text DEFAULT NULL,
+  `file_name` varchar(255) DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `recall_expires_at` datetime NOT NULL,
   `sender_hidden_at` datetime DEFAULT NULL,

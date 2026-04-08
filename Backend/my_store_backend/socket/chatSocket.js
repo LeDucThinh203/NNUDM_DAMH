@@ -72,10 +72,12 @@ export const initChatSocket = (httpServer) => {
       try {
         const toUserId = Number(payload?.toUserId);
         const content = String(payload?.content || '').trim();
+        const filePath = typeof payload?.filePath === 'string' ? payload.filePath.trim() : '';
+        const fileName = typeof payload?.fileName === 'string' ? payload.fileName.trim() : '';
 
-        if (!toUserId || !content) {
+        if (!toUserId || (!content && !filePath)) {
           if (typeof ack === 'function') {
-            ack({ ok: false, error: 'Thiếu toUserId hoặc nội dung tin nhắn' });
+            ack({ ok: false, error: 'Thiếu toUserId, nội dung tin nhắn hoặc file đính kèm' });
           }
           return;
         }
@@ -91,7 +93,9 @@ export const initChatSocket = (httpServer) => {
         const savedMessage = await chatRepository.createMessage({
           senderId: userId,
           receiverId: toUserId,
-          message: content
+          message: content,
+          filePath: filePath || null,
+          fileName: fileName || null
         });
 
         io.to(`user:${userId}`).to(`user:${toUserId}`).emit('chat:message', savedMessage);

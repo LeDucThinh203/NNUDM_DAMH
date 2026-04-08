@@ -25,7 +25,7 @@ export const getChatUserById = async (userId) => {
 
 export const getMessagesBetweenUsers = async ({ userAId, userBId, limit = 100 }) => {
   const [rows] = await db.query(
-    `SELECT id, sender_id, receiver_id, message, created_at, recall_expires_at, sender_hidden_at, recalled_for_all_at, reactions
+    `SELECT id, sender_id, receiver_id, message, file_path, file_name, created_at, recall_expires_at, sender_hidden_at, recalled_for_all_at, reactions
      FROM chat_messages
      WHERE ((sender_id = ? AND receiver_id = ?)
         OR (sender_id = ? AND receiver_id = ?))
@@ -37,15 +37,15 @@ export const getMessagesBetweenUsers = async ({ userAId, userBId, limit = 100 })
   return rows;
 };
 
-export const createMessage = async ({ senderId, receiverId, message }) => {
+export const createMessage = async ({ senderId, receiverId, message, filePath = null, fileName = null }) => {
   const [result] = await db.query(
-    `INSERT INTO chat_messages (sender_id, receiver_id, message, created_at, recall_expires_at, reactions)
-     VALUES (?, ?, ?, NOW(), DATE_ADD(NOW(), INTERVAL 1 DAY), NULL)`,
-    [senderId, receiverId, message]
+    `INSERT INTO chat_messages (sender_id, receiver_id, message, file_path, file_name, created_at, recall_expires_at, reactions)
+     VALUES (?, ?, ?, ?, ?, NOW(), DATE_ADD(NOW(), INTERVAL 1 DAY), NULL)`,
+    [senderId, receiverId, message || '', filePath, fileName]
   );
 
   const [rows] = await db.query(
-    `SELECT id, sender_id, receiver_id, message, created_at, recall_expires_at, sender_hidden_at, recalled_for_all_at, reactions
+    `SELECT id, sender_id, receiver_id, message, file_path, file_name, created_at, recall_expires_at, sender_hidden_at, recalled_for_all_at, reactions
      FROM chat_messages
      WHERE id = ?`,
     [result.insertId]
