@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { getChatUsers, getConversationMessages } from '../../api';
+import { getChatUsers, getConversationMessages, uploadChatFile } from '../../api';
 import { connectChatSocket } from '../../socket/chatSocket';
 
 export default function ChatWidget() {
@@ -17,6 +17,8 @@ export default function ChatWidget() {
   const [selectedUserId, setSelectedUserId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [messageInput, setMessageInput] = useState('');
+  const [attachedFile, setAttachedFile] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [recallMenuMessageId, setRecallMenuMessageId] = useState(null);
@@ -25,6 +27,66 @@ export default function ChatWidget() {
   const REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '😡'];
 
   const messagesRef = useRef(null);
+
+  const isImageAttachment = (message) => {
+    const attachmentName = String(message?.file_name || message?.file_path || '').toLowerCase();
+    return /\.(png|jpe?g|gif|webp|bmp|svg|avif)$/.test(attachmentName);
+  };
+
+  const repairAttachmentLabel = (value) => {
+    const text = String(value || '').trim();
+    if (!text) return '';
+
+    const looksBroken = /Ã.|á»|Ä.|Â.|Ð|Ñ|Æ/.test(text);
+    if (!looksBroken) return text;
+
+    try {
+      return decodeURIComponent(escape(text));
+    } catch {
+      return text;
+    }
+  };
+
+  const getAttachmentName = (message) => {
+    if (message?.file_name) return repairAttachmentLabel(message.file_name);
+    if (message?.file_path) {
+      const fileNameFromPath = String(message.file_path).split('/').pop() || 'Tệp đính kèm';
+      return repairAttachmentLabel(fileNameFromPath);
+    }
+    return 'Tệp đính kèm';
+  };
+
+  const getAttachmentUrl = (message) => {
+    const rawPath = String(message?.file_path || '').trim();
+    if (!rawPath) return '';
+
+    const host = window.location.hostname;
+    const isLocalDev = host === 'localhost' || host === '127.0.0.1';
+    const backendOrigin = `http://${host}:3006`;
+
+    try {
+      const parsed = new URL(rawPath);
+
+      if (isLocalDev) {
+        return `${backendOrigin}${parsed.pathname}${parsed.search || ''}`;
+      }
+
+      return rawPath;
+    } catch {
+      if (isLocalDev && rawPath.startsWith('/')) {
+        return `${backendOrigin}${rawPath}`;
+      }
+      return rawPath;
+    }
+  };
+
+  const getDownloadUrl = (message) => {
+    const attachmentUrl = getAttachmentUrl(message);
+    if (!attachmentUrl) return '';
+
+    const separator = attachmentUrl.includes('?') ? '&' : '?';
+    return `${attachmentUrl}${separator}download=1`;
+  };
 
   useEffect(() => {
     if (!isOpen || !token) return;
@@ -144,19 +206,46 @@ export default function ChatWidget() {
     }
   }, [messages, isOpen]);
 
-  const sendMessage = () => {
+  const sendMessage = async () => {
     const content = messageInput.trim();
-    if (!content || !selectedUserId || !token) return;
+    if ((!content && !attachedFile) || !selectedUserId || !token) return;
 
     const socket = connectChatSocket(token);
     if (!socket) return;
 
-    socket.emit('chat:send', { toUserId: selectedUserId, content }, (res) => {
+    let uploadResult = null;
+
+    try {
+      if (attachedFile) {
+        setIsUploading(true);
+        console.info('[chat-widget] uploading file', {
+          name: attachedFile.name,
+          size: attachedFile.size,
+          type: attachedFile.type || 'unknown'
+        });
+        uploadResult = await uploadChatFile(attachedFile);
+      }
+    } catch (error) {
+      console.error('[chat-widget] upload failed:', error.message);
+      window.alert(error.message || 'Không thể upload file');
+      setIsUploading(false);
+      return;
+    }
+
+    setIsUploading(false);
+
+    socket.emit('chat:send', {
+      toUserId: selectedUserId,
+      content,
+      filePath: uploadResult?.filePath || null,
+      fileName: uploadResult?.fileName || attachedFile?.name || null
+    }, (res) => {
       if (!res?.ok) {
         window.alert(res?.error || 'Không gửi được tin nhắn');
         return;
       }
       setMessageInput('');
+      setAttachedFile(null);
     });
   };
 
@@ -307,12 +396,47 @@ export default function ChatWidget() {
                   const canRecall = mine && !recalled;
                   const canReact = !mine && !recalled;
                   const hasReactions = reactionEntries.length > 0;
+                  const hasAttachment = Boolean(msg.file_path) && !recalled;
+                  const attachmentUrl = getAttachmentUrl(msg);
+                  const downloadUrl = getDownloadUrl(msg);
 
                   return (
                     <div key={msg.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
                       <div className={`relative max-w-[85%] ${mine ? 'items-end' : 'items-start'} flex flex-col`}>
                         <div className={`max-w-[92%] min-w-[120px] text-sm rounded-lg px-2 py-1 ${recalled ? 'bg-gray-200 text-gray-600 border border-dashed' : mine ? 'bg-blue-600 text-white' : 'bg-white border text-gray-800'}`}>
                           <p>{recalled ? 'Tin nhắn đã thu hồi' : msg.message}</p>
+                          {hasAttachment && (
+                            <div className="mt-2 space-y-2">
+                              {isImageAttachment(msg) ? (
+                                <div className="space-y-1">
+                                  <a href={attachmentUrl} target="_blank" rel="noreferrer" className="block">
+                                    <img
+                                      src={attachmentUrl}
+                                      alt={getAttachmentName(msg)}
+                                      className="max-h-44 rounded border object-contain bg-white"
+                                    />
+                                  </a>
+                                  <a
+                                    href={downloadUrl}
+                                    download={getAttachmentName(msg)}
+                                    className={`inline-flex items-center gap-2 rounded border px-2 py-1 text-[11px] font-medium ${mine ? 'border-blue-300 bg-blue-500 text-white' : 'border-gray-300 bg-white text-gray-700'}`}
+                                  >
+                                    <span>⬇</span>
+                                    <span>Tải xuống</span>
+                                  </a>
+                                </div>
+                              ) : (
+                                <a
+                                  href={downloadUrl}
+                                  download={getAttachmentName(msg)}
+                                  className={`inline-flex items-center gap-2 rounded border px-2 py-1 text-[11px] font-medium ${mine ? 'border-blue-300 bg-blue-500 text-white' : 'border-gray-300 bg-white text-gray-700'}`}
+                                >
+                                  <span>⬇</span>
+                                  <span className="max-w-[180px] truncate">{getAttachmentName(msg)}</span>
+                                </a>
+                              )}
+                            </div>
+                          )}
                         </div>
 
                         {hasReactions && (
@@ -407,22 +531,37 @@ export default function ChatWidget() {
             )}
           </div>
 
-          <div className="p-2 border-t flex gap-2">
-            <input
-              type="text"
-              value={messageInput}
-              onChange={(e) => setMessageInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
-              placeholder="Nhập tin nhắn..."
-              className="flex-1 border rounded px-2 py-1 text-sm"
-            />
-            <button
-              onClick={sendMessage}
-              className="bg-blue-600 text-white px-3 rounded text-sm hover:bg-blue-700"
-              disabled={!selectedUserId || !messageInput.trim()}
-            >
-              Gửi
-            </button>
+          <div className="p-2 border-t space-y-2">
+            {attachedFile && (
+              <div className="flex items-center justify-between rounded border bg-blue-50 px-2 py-1 text-[11px] text-blue-700">
+                <span className="truncate">{attachedFile.name}</span>
+                <button type="button" className="font-semibold hover:underline" onClick={() => setAttachedFile(null)}>
+                  Xóa
+                </button>
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={messageInput}
+                onChange={(e) => setMessageInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+                placeholder="Nhập tin nhắn..."
+                className="flex-1 border rounded px-2 py-1 text-sm"
+              />
+              <label className="inline-flex cursor-pointer items-center rounded border px-2 py-1 text-sm text-gray-700 hover:bg-gray-50">
+                📎
+                <input type="file" className="hidden" onChange={(e) => setAttachedFile(e.target.files?.[0] || null)} />
+              </label>
+              <button
+                onClick={sendMessage}
+                className="bg-blue-600 text-white px-3 rounded text-sm hover:bg-blue-700 disabled:opacity-50"
+                disabled={!selectedUserId || (!messageInput.trim() && !attachedFile) || isUploading}
+              >
+                {isUploading ? 'Đang gửi...' : 'Gửi'}
+              </button>
+            </div>
           </div>
         </div>
       )}

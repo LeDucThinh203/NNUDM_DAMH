@@ -13,6 +13,7 @@ import sizesRoutes from './sizes.js';
 import cartRoutes from './cart.js';
 import vnpayRoutes from './vnpay.js';
 import chatRoutes from './chat.js';
+import uploadRoutes from './upload.js';
 
 
 const router = express.Router();
@@ -30,6 +31,7 @@ router.use('/sizes', sizesRoutes);
 router.use('/cart', cartRoutes);
 router.use('/vnpay', vnpayRoutes);
 router.use('/chat', chatRoutes);
+router.use('/upload', uploadRoutes);
 
 
 export default router;

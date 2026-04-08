@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Session from '../../Session/session';
-import { getChatUsers, getConversationMessages } from '../../api';
+import { getChatUsers, getConversationMessages, uploadChatFile } from '../../api';
 import { connectChatSocket, disconnectChatSocket } from '../../socket/chatSocket';
 
 export default function ChatPage() {
@@ -11,6 +11,8 @@ export default function ChatPage() {
   const [selectedUserId, setSelectedUserId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [messageInput, setMessageInput] = useState('');
+  const [attachedFile, setAttachedFile] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
@@ -57,6 +59,36 @@ export default function ChatPage() {
     loadMessages();
   }, [selectedUserId]);
 
+  const applyRecallToLocalMessages = useCallback((payload) => {
+    const messageId = Number(payload?.messageId);
+    const recalledAt = payload?.recalledAt || new Date().toISOString();
+
+    setMessages((prev) =>
+      prev.map((item) => {
+        if (Number(item.id) !== messageId) return item;
+
+        if (payload?.mode === 'all') {
+          return {
+            ...item,
+            message: 'Tin nhắn đã thu hồi',
+            recalled_for_all_at: recalledAt,
+            sender_hidden_at: null
+          };
+        }
+
+        if (Number(item.sender_id) === Number(currentUser?.id)) {
+          return {
+            ...item,
+            message: 'Tin nhắn đã thu hồi',
+            sender_hidden_at: recalledAt
+          };
+        }
+
+        return item;
+      })
+    );
+  }, [currentUser?.id]);
+
   useEffect(() => {
     if (!token) return undefined;
 
@@ -95,7 +127,7 @@ export default function ChatPage() {
       socket.off('chat:message-recalled', handleMessageRecalled);
       disconnectChatSocket();
     };
-  }, [token, selectedUserId, currentUser?.id]);
+  }, [token, selectedUserId, currentUser?.id, applyRecallToLocalMessages]);
 
   useEffect(() => {
     if (messagesContainerRef.current) {
@@ -105,9 +137,74 @@ export default function ChatPage() {
 
   const selectedUser = chatUsers.find((u) => Number(u.id) === Number(selectedUserId));
 
-  const sendMessage = () => {
+  const isImageAttachment = (message) => {
+    const attachmentName = String(message?.file_name || message?.file_path || '').toLowerCase();
+    return /\.(png|jpe?g|gif|webp|bmp|svg|avif)$/.test(attachmentName);
+  };
+
+  const repairAttachmentLabel = (value) => {
+    const text = String(value || '').trim();
+    if (!text) return '';
+
+    const looksBroken = /Ã.|á»|Ä.|Â.|Ð|Ñ|Æ/.test(text);
+    if (!looksBroken) return text;
+
+    try {
+      return decodeURIComponent(escape(text));
+    } catch {
+      return text;
+    }
+  };
+
+  const getAttachmentName = (message) => {
+    if (message?.file_name) return repairAttachmentLabel(message.file_name);
+    if (message?.file_path) {
+      const fileNameFromPath = String(message.file_path).split('/').pop() || 'Tệp đính kèm';
+      return repairAttachmentLabel(fileNameFromPath);
+    }
+    return 'Tệp đính kèm';
+  };
+
+  const getAttachmentUrl = (message) => {
+    const rawPath = String(message?.file_path || '').trim();
+    if (!rawPath) return '';
+
+    const host = window.location.hostname;
+    const isLocalDev = host === 'localhost' || host === '127.0.0.1';
+    const backendOrigin = `http://${host}:3006`;
+
+    try {
+      const parsed = new URL(rawPath);
+
+      if (isLocalDev) {
+        return `${backendOrigin}${parsed.pathname}${parsed.search || ''}`;
+      }
+
+      return rawPath;
+    } catch {
+      if (isLocalDev && rawPath.startsWith('/')) {
+        return `${backendOrigin}${rawPath}`;
+      }
+      return rawPath;
+    }
+  };
+
+  const getDownloadUrl = (message) => {
+    const attachmentUrl = getAttachmentUrl(message);
+    if (!attachmentUrl) return '';
+
+    const separator = attachmentUrl.includes('?') ? '&' : '?';
+    return `${attachmentUrl}${separator}download=1`;
+  };
+
+  const handleFileChange = (event) => {
+    const file = event.target.files?.[0] || null;
+    setAttachedFile(file);
+  };
+
+  const sendMessage = async () => {
     const content = messageInput.trim();
-    if (!content || !selectedUserId) return;
+    if (!selectedUserId || (!content && !attachedFile)) return;
 
     const socket = connectChatSocket(token);
     if (!socket) {
@@ -115,11 +212,34 @@ export default function ChatPage() {
       return;
     }
 
+    let uploadResult = null;
+
+    try {
+      if (attachedFile) {
+        setIsUploading(true);
+        console.info('[chat-page] uploading file', {
+          name: attachedFile.name,
+          size: attachedFile.size,
+          type: attachedFile.type || 'unknown'
+        });
+        uploadResult = await uploadChatFile(attachedFile);
+      }
+    } catch (uploadError) {
+      setIsUploading(false);
+      console.error('[chat-page] upload failed:', uploadError.message);
+      setError(uploadError.message || 'Không thể upload file');
+      return;
+    }
+
+    setIsUploading(false);
+
     socket.emit(
       'chat:send',
       {
         toUserId: selectedUserId,
-        content
+        content,
+        filePath: uploadResult?.filePath || null,
+        fileName: uploadResult?.fileName || attachedFile?.name || null
       },
       (response) => {
         if (!response?.ok) {
@@ -127,41 +247,12 @@ export default function ChatPage() {
           return;
         }
         setMessageInput('');
+        setAttachedFile(null);
       }
     );
   };
 
   const isOnline = (userId) => onlineUsers.includes(Number(userId));
-
-  const applyRecallToLocalMessages = (payload) => {
-    const messageId = Number(payload?.messageId);
-    const recalledAt = payload?.recalledAt || new Date().toISOString();
-
-    setMessages((prev) =>
-      prev.map((item) => {
-        if (Number(item.id) !== messageId) return item;
-
-        if (payload?.mode === 'all') {
-          return {
-            ...item,
-            message: 'Tin nhắn đã thu hồi',
-            recalled_for_all_at: recalledAt,
-            sender_hidden_at: null
-          };
-        }
-
-        if (Number(item.sender_id) === Number(currentUser?.id)) {
-          return {
-            ...item,
-            message: 'Tin nhắn đã thu hồi',
-            sender_hidden_at: recalledAt
-          };
-        }
-
-        return item;
-      })
-    );
-  };
 
   const handleRecallMessage = (messageId, mode) => {
     const confirmed = window.confirm('Bạn có muốn chắc sẽ thu hồi ?');
@@ -249,6 +340,9 @@ export default function ChatPage() {
                   const isSenderHidden = mine && Boolean(msg.sender_hidden_at);
                   const displayText = isAllRecalled || isSenderHidden ? 'Tin nhắn đã thu hồi' : msg.message;
                   const isRecalled = isAllRecalled || isSenderHidden;
+                  const hasAttachment = Boolean(msg.file_path) && !isRecalled;
+                  const attachmentUrl = getAttachmentUrl(msg);
+                  const downloadUrl = getDownloadUrl(msg);
 
                   return (
                     <div key={msg.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
@@ -294,6 +388,38 @@ export default function ChatPage() {
                           }`}
                         >
                           <p>{displayText}</p>
+                          {hasAttachment && (
+                            <div className="mt-2 space-y-2">
+                              {isImageAttachment(msg) ? (
+                                <div className="space-y-2">
+                                  <a href={attachmentUrl} target="_blank" rel="noreferrer" className="block">
+                                    <img
+                                      src={attachmentUrl}
+                                      alt={getAttachmentName(msg)}
+                                      className="max-h-56 rounded border object-contain bg-white"
+                                    />
+                                  </a>
+                                  <a
+                                    href={downloadUrl}
+                                    download={getAttachmentName(msg)}
+                                    className={`inline-flex items-center gap-2 rounded border px-3 py-2 text-xs font-medium ${mine ? 'border-blue-300 bg-blue-500 text-white' : 'border-gray-300 bg-white text-gray-700'}`}
+                                  >
+                                    <span>⬇</span>
+                                    <span>Tải xuống</span>
+                                  </a>
+                                </div>
+                              ) : (
+                                <a
+                                  href={downloadUrl}
+                                  download={getAttachmentName(msg)}
+                                  className={`inline-flex items-center gap-2 rounded border px-3 py-2 text-xs font-medium ${mine ? 'border-blue-300 bg-blue-500 text-white' : 'border-gray-300 bg-white text-gray-700'}`}
+                                >
+                                  <span>⬇</span>
+                                  <span className="max-w-[220px] truncate">{getAttachmentName(msg)}</span>
+                                </a>
+                              )}
+                            </div>
+                          )}
                           <p className={`mt-1 text-[11px] ${isRecalled ? 'text-gray-500' : mine ? 'text-blue-100' : 'text-gray-400'}`}>
                             {new Date(msg.created_at).toLocaleString()}
                           </p>
@@ -306,24 +432,39 @@ export default function ChatPage() {
             )}
           </div>
 
-          <div className="p-3 border-t flex gap-2">
-            <input
-              type="text"
-              value={messageInput}
-              onChange={(e) => setMessageInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') sendMessage();
-              }}
-              placeholder="Nhập tin nhắn..."
-              className="flex-1 border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-            />
-            <button
-              onClick={sendMessage}
-              disabled={!selectedUserId || !messageInput.trim()}
-              className="px-4 py-2 rounded bg-blue-600 text-white text-sm font-medium disabled:opacity-50"
-            >
-              Gửi
-            </button>
+          <div className="p-3 border-t space-y-2">
+            {attachedFile && (
+              <div className="flex items-center justify-between rounded border bg-blue-50 px-3 py-2 text-xs text-blue-700">
+                <span className="truncate">Đã chọn: {attachedFile.name}</span>
+                <button type="button" className="font-semibold hover:underline" onClick={() => setAttachedFile(null)}>
+                  Xóa
+                </button>
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={messageInput}
+                onChange={(e) => setMessageInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') sendMessage();
+                }}
+                placeholder="Nhập tin nhắn..."
+                className="flex-1 border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              />
+              <label className="inline-flex cursor-pointer items-center rounded border px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                📎
+                <input type="file" className="hidden" onChange={handleFileChange} />
+              </label>
+              <button
+                onClick={sendMessage}
+                disabled={!selectedUserId || (!messageInput.trim() && !attachedFile) || isUploading}
+                className="px-4 py-2 rounded bg-blue-600 text-white text-sm font-medium disabled:opacity-50"
+              >
+                {isUploading ? 'Đang gửi...' : 'Gửi'}
+              </button>
+            </div>
           </div>
         </div>
       </div>

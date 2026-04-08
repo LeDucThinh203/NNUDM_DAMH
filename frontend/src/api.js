@@ -8,6 +8,16 @@ let isConfigLoaded = false;
 // Lấy config từ backend để biết URL đúng (localhost hay ngrok)
 const fetchBackendConfig = async () => {
   if (isConfigLoaded) return;
+
+  const host = window.location.hostname;
+  const isLocalDev = host === 'localhost' || host === '127.0.0.1';
+
+  if (isLocalDev) {
+    API_BASE_URL = ''; // Dùng CRA proxy trong local để tránh lệch ngrok/local.
+    isConfigLoaded = true;
+    console.log('🔧 Local development mode: use relative API paths via proxy');
+    return;
+  }
   
   try {
     const response = await fetch(`http://localhost:3006/api/config`);
@@ -37,6 +47,52 @@ const safeJson = async (res) => {
   }
 };
 
+const normalizeToken = (rawToken) => {
+  if (typeof rawToken !== 'string') return '';
+
+  // Chuẩn hoá token từ localStorage để tránh ký tự lạ làm fetch ném TypeError.
+  let token = rawToken.trim();
+
+  if (!token) return '';
+
+  if ((token.startsWith('"') && token.endsWith('"')) || (token.startsWith("'") && token.endsWith("'"))) {
+    token = token.slice(1, -1);
+  }
+
+  if (token.startsWith('{') && token.endsWith('}')) {
+    try {
+      const parsed = JSON.parse(token);
+      if (typeof parsed?.token === 'string') {
+        token = parsed.token;
+      }
+    } catch {
+      // Không phải JSON hợp lệ, giữ token hiện tại.
+    }
+  }
+
+  token = token
+    .replace(/^Bearer\s+/i, '')
+    .replace(/\s+/g, '')
+    .replace(/[\u0000-\u001F\u007F]/g, '');
+
+  const jwtMatch = token.match(/[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+/);
+  return jwtMatch ? jwtMatch[0] : '';
+};
+
+const parseUploadResponse = async (res) => {
+  const contentType = String(res.headers.get('content-type') || '').toLowerCase();
+  if (contentType.includes('application/json')) {
+    return await safeJson(res);
+  }
+
+  try {
+    const text = await res.text();
+    return { error: text || `HTTP ${res.status}` };
+  } catch {
+    return { error: `HTTP ${res.status}` };
+  }
+};
+
 /**
  * Helper function để tạo headers với JWT token
  */
@@ -45,12 +101,56 @@ const getAuthHeaders = () => {
     "Content-Type": "application/json"
   };
   
-  const token = Session.getToken();
+  const token = normalizeToken(Session.getToken());
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
   
   return headers;
+};
+
+const getMultipartAuthHeaders = () => {
+  const headers = {};
+
+  const token = normalizeToken(Session.getToken());
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  return headers;
+};
+
+const getUploadApiUrl = () => {
+  const host = window.location.hostname;
+  const isLocalDev = host === 'localhost' || host === '127.0.0.1';
+
+  // Khi chạy local FE (:3000), ưu tiên đi qua proxy để tránh lỗi CORS/ngrok ở browser.
+  if (isLocalDev) {
+    return '/upload/chat';
+  }
+
+  return `${API_BASE_URL}/upload/chat`;
+};
+
+const getUploadApiCandidates = () => {
+  const host = window.location.hostname;
+  const origin = window.location.origin;
+  const isLocalDev = host === 'localhost' || host === '127.0.0.1';
+  const candidates = [];
+
+  if (isLocalDev) {
+    candidates.push(`${origin}/upload/chat`);
+    candidates.push('/upload/chat');
+    candidates.push('http://localhost:3006/upload/chat');
+    candidates.push('http://127.0.0.1:3006/upload/chat');
+  }
+
+  const dynamicUrl = getUploadApiUrl();
+  if (dynamicUrl) {
+    candidates.push(dynamicUrl);
+  }
+
+  return [...new Set(candidates)];
 };
 
 // ================= Product API =================
@@ -695,5 +795,72 @@ export const getConversationMessages = async (userId, limit = 100) => {
   const data = await safeJson(res);
   if (!res.ok) throw new Error(data.error || 'Không thể lấy lịch sử tin nhắn');
   return data;
+};
+
+export const uploadChatFile = async (file) => {
+  if (!file) {
+    throw new Error('Vui lòng chọn file để upload');
+  }
+
+  if (file.size > 25 * 1024 * 1024) {
+    throw new Error('File vượt quá 25MB');
+  }
+
+  let lastNetworkError = null;
+  const attemptedEndpoints = [];
+  const token = normalizeToken(Session.getToken());
+
+  if (!token) {
+    throw new Error('Token đăng nhập không hợp lệ. Vui lòng đăng nhập lại');
+  }
+
+  for (const endpoint of getUploadApiCandidates()) {
+    attemptedEndpoints.push(endpoint);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    console.info(`[chat-upload] try endpoint: ${endpoint}`);
+
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`
+        },
+        body: formData
+      });
+
+      const data = await parseUploadResponse(res);
+      if (!res.ok) {
+        if (res.status === 401 || res.status === 403) {
+          console.warn(`[chat-upload] auth error ${res.status} at ${endpoint}`, data);
+          throw new Error(data.error || `Lỗi xác thực (${res.status}). Vui lòng đăng nhập lại`);
+        }
+
+        if (res.status === 400 || res.status === 413 || res.status === 415) {
+          console.warn(`[chat-upload] payload error ${res.status} at ${endpoint}`, data);
+          throw new Error(data.error || `File không hợp lệ (${res.status})`);
+        }
+
+        console.warn(`[chat-upload] http error ${res.status} at ${endpoint}`, data);
+        throw new Error(data.error || 'Không thể upload file chat');
+      }
+
+      console.info(`[chat-upload] success at ${endpoint}`);
+
+      return data;
+    } catch (error) {
+      const isNetworkError = error instanceof TypeError;
+      if (!isNetworkError) {
+        throw error;
+      }
+
+      console.error(`[chat-upload] network error at ${endpoint}:`, error.message);
+      lastNetworkError = error;
+    }
+  }
+
+  const networkMessage = lastNetworkError?.message || 'Không thể kết nối upload service';
+  throw new Error(`${networkMessage}. Endpoint đã thử: ${attemptedEndpoints.join(', ')}`);
 };
 

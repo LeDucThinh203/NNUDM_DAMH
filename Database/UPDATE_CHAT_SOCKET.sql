@@ -5,6 +5,8 @@ CREATE TABLE IF NOT EXISTS `chat_messages` (
   `sender_id` int NOT NULL,
   `receiver_id` int NOT NULL,
   `message` text NOT NULL,
+  `file_path` text DEFAULT NULL,
+  `file_name` varchar(255) DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `recall_expires_at` datetime NOT NULL,
   `sender_hidden_at` datetime DEFAULT NULL,
@@ -29,6 +31,40 @@ SET @has_recall_expires_at := (
 SET @sql := IF(
   @has_recall_expires_at = 0,
   'ALTER TABLE `chat_messages` ADD COLUMN `recall_expires_at` datetime NULL AFTER `created_at`',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @has_file_path := (
+  SELECT COUNT(*)
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'chat_messages'
+    AND COLUMN_NAME = 'file_path'
+);
+
+SET @sql := IF(
+  @has_file_path = 0,
+  'ALTER TABLE `chat_messages` ADD COLUMN `file_path` text NULL AFTER `message`',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @has_file_name := (
+  SELECT COUNT(*)
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'chat_messages'
+    AND COLUMN_NAME = 'file_name'
+);
+
+SET @sql := IF(
+  @has_file_name = 0,
+  'ALTER TABLE `chat_messages` ADD COLUMN `file_name` varchar(255) NULL AFTER `file_path`',
   'SELECT 1'
 );
 PREPARE stmt FROM @sql;
