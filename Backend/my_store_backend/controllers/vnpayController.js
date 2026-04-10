@@ -6,6 +6,7 @@
 import crypto from 'crypto';
 import querystring from 'qs';
 import moment from 'moment';
+import { serverError } from '../utils/response.js';
 
 // VNPay Configuration (Sandbox)
 const vnpayConfig = {
@@ -106,12 +107,7 @@ const createPaymentUrl = (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error creating VNPay payment URL:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Lỗi tạo link thanh toán VNPay',
-            error: error.message
-        });
+        serverError(res, error);
     }
 };
 
@@ -208,8 +204,8 @@ const vnpayIPN = (req, res) => {
             res.status(200).json({ RspCode: '97', Message: 'Checksum failed' });
         }
     } catch (error) {
-        console.error('Error processing VNPay IPN:', error);
-        res.status(500).json({ RspCode: '99', Message: 'Unknown error' });
+        console.error('VNPay IPN error:', error);
+        res.status(200).json({ RspCode: '99', Message: 'Unknown error' });
     }
 };
 
@@ -241,12 +237,7 @@ const updateOrderPaymentStatus = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error updating order payment status:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to update order payment status',
-            error: error.message
-        });
+        serverError(res, error);
     }
 };
 

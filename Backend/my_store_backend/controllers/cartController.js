@@ -1,12 +1,12 @@
 import * as cartRepo from '../repositories/cartRepository.js';
+import { badRequest, serverError, success } from '../utils/response.js';
 
 export const getMyCart = async (req, res) => {
   try {
     const cart = await cartRepo.getCartByAccountId(req.user.id);
-    res.json(cart);
+    success(res, cart);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 };
 
@@ -14,49 +14,65 @@ export const syncMyCart = async (req, res) => {
   try {
     const items = Array.isArray(req.body?.items) ? req.body.items : [];
     const cart = await cartRepo.syncCartItems(req.user.id, items);
-    res.json(cart);
+    success(res, cart);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 };
 
 export const addItem = async (req, res) => {
   try {
-    const cart = await cartRepo.addCartItem(req.user.id, req.body);
-    res.json(cart);
+    const { product_size_id, quantity } = req.body;
+    if (!product_size_id) {
+      return badRequest(res, 'Mã product size là bắt buộc');
+    }
+    if (quantity === undefined || quantity === null) {
+      return badRequest(res, 'Số lượng là bắt buộc');
+    }
+
+    const qty = Number(quantity);
+    if (qty < 1) {
+      return badRequest(res, 'Số lượng phải lớn hơn 0');
+    }
+
+    const cart = await cartRepo.addCartItem(req.user.id, { product_size_id, quantity: qty });
+    success(res, cart);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 };
 
 export const updateItem = async (req, res) => {
   try {
+    const { quantity } = req.body;
+    if (quantity !== undefined) {
+      const qty = Number(quantity);
+      if (qty < 0) {
+        return badRequest(res, 'Số lượng không được âm');
+      }
+    }
+
     const cart = await cartRepo.updateCartItem(req.user.id, req.body);
-    res.json(cart);
+    success(res, cart);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 };
 
 export const removeItem = async (req, res) => {
   try {
     const cart = await cartRepo.removeCartItem(req.user.id, req.body);
-    res.json(cart);
+    success(res, cart);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 };
 
 export const clearMyCart = async (req, res) => {
   try {
     const cart = await cartRepo.clearCart(req.user.id);
-    res.json(cart);
+    success(res, cart);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 };
